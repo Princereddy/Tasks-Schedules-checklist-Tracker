@@ -1,0 +1,6 @@
+{
+  "name": "Task & Habit Flow Tracker",
+  "description": "Professional MS Office styled task and habit tracker with multi-year calendar scheduling, weekday timings, real-time checklist, interactive progress charts, and streak monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
