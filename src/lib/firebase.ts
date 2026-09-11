@@ -30,6 +30,11 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // Firebase Auth Setup
 export const auth = getAuth(app);
+try {
+  auth.useDeviceLanguage();
+} catch (e) {
+  // Ignore in environments without language API
+}
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
   prompt: 'select_account',

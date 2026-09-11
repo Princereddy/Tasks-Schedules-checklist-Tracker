@@ -1,0 +1,29 @@
+# robots.txt for PLANVEXA (https://ais-pre-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app)
+User-agent: *
+Allow: /
+
+# Google Search Engine Crawler (Googlebot)
+User-agent: Googlebot
+Allow: /
+
+# Google Smartphone Crawler (Mobile First Indexing)
+User-agent: Googlebot-Mobile
+Allow: /
+
+# Google Image Crawler
+User-agent: Googlebot-Image
+Allow: /
+
+# Google Ads Bot (Crucial for Google Ads Quality Score & Landing Page Evaluation)
+User-agent: AdsBot-Google
+Allow: /
+
+User-agent: AdsBot-Google-Mobile
+Allow: /
+
+# Google AdSense / Media Partners
+User-agent: Mediapartners-Google
+Allow: /
+
+# Sitemap Location
+Sitemap: https://ais-pre-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app/sitemap.xml

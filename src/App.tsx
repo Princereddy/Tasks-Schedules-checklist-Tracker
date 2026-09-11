@@ -184,6 +184,20 @@ export default function App() {
     };
   }, []);
 
+  // Check for ?action=signin query parameter (e.g. from popup-blocked new-tab fallback)
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.get('action') === 'signin') {
+        setIsAuthModalOpen(true);
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch (e) {
+      // Ignore URL parsing errors
+    }
+  }, []);
+
   // Sync state to localStorage (offline safety cache)
   useEffect(() => {
     saveTasksToStorage(tasks);

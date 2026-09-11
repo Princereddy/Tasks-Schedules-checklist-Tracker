@@ -10,6 +10,8 @@ import {
   X, 
   Sparkles,
   AlertCircle,
+  AlertTriangle,
+  ExternalLink,
   Edit2,
   Check,
   Zap
@@ -48,6 +50,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   tasksCount,
 }) => {
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isPopupBlocked, setIsPopupBlocked] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [nameInput, setNameInput] = useState<string>('');
@@ -55,6 +58,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [nameSuccessMessage, setNameSuccessMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
+  const standaloneAppUrl = typeof window !== 'undefined' 
+    ? `${window.location.origin}${window.location.pathname}?action=signin` 
+    : '#';
 
   const currentEffectiveName = customDisplayName || currentUser?.displayName || 'Google User';
 
@@ -91,6 +99,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleSignIn = async () => {
     setAuthError(null);
+    setIsPopupBlocked(false);
     setIsProcessing(true);
     try {
       await onLogin();
@@ -98,10 +107,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: any) {
       console.error('Login error:', err);
-      if (err?.code === 'auth/popup-closed-by-user') {
-        setAuthError('Sign-in popup was closed. Please try again.');
-      } else if (err?.code === 'auth/popup-blocked') {
-        setAuthError('The sign-in popup was blocked by your browser. Please allow popups for this site.');
+      const code = err?.code || '';
+      const msg = (err?.message || '').toLowerCase();
+      if (code === 'auth/popup-closed-by-user') {
+        setAuthError('Sign-in popup was closed before completing. Click below to try again.');
+      } else if (
+        code === 'auth/popup-blocked' ||
+        msg.includes('popup') ||
+        msg.includes('blocked')
+      ) {
+        setIsPopupBlocked(true);
+        setAuthError(null);
+      } else if (code === 'auth/cancelled-popup-request') {
+        setAuthError('Another sign-in request is already in progress. Please try again.');
       } else {
         setAuthError(err?.message || 'Failed to sign in with Google. Please try again.');
       }
@@ -169,6 +187,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Modal Content */}
         <div className="p-6 space-y-4">
+          {/* Popup Blocked Resolution Card */}
+          {isPopupBlocked && (
+            <div 
+              id="popup-blocked-resolution-card"
+              className="p-4 rounded-xl bg-amber-50/95 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 space-y-3 animate-in fade-in duration-200"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                    Browser Blocked the Google Sign-In Window
+                  </h4>
+                  <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 mt-0.5 leading-relaxed">
+                    Embedded web previews automatically restrict popup windows. Choose either solution below to finish sign-in:
+                  </p>
+                </div>
+              </div>
+
+              {/* Primary 1-Click Solution: Launch in standalone tab */}
+              <div className="space-y-1.5 pt-1">
+                <a
+                  id="btn-popup-blocked-open-new-tab"
+                  href={standaloneAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs hover:shadow transition-all text-center cursor-pointer active:scale-[0.99]"
+                >
+                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                  <span>1. Open in Standalone Tab to Sign In (Instant)</span>
+                </a>
+                <p className="text-[10.5px] text-amber-900/80 dark:text-amber-300/80 text-center leading-normal">
+                  Opens PLANVEXA in a full browser tab without iframe restrictions. Once signed in, your account auto-syncs back here!
+                </p>
+              </div>
+
+              {/* Secondary Option: How to unblock in address bar */}
+              <div className="pt-2 border-t border-amber-200/80 dark:border-amber-900/60 space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-900 dark:text-slate-100">
+                  2. Or allow popups in this browser tab:
+                </span>
+                <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 dark:text-slate-300 pl-1 leading-normal">
+                  <li>Click the <strong>Pop-up blocked icon</strong> (<span className="text-rose-600 font-bold">⊘</span> or red ✕) at the top-right of your address bar.</li>
+                  <li>Select <strong>"Always allow pop-ups and redirects from this site"</strong>.</li>
+                  <li>Click <strong>Done</strong>, then click <strong>Try Sign In Again</strong> below.</li>
+                </ol>
+                <div className="pt-1 flex items-center justify-end">
+                  <button
+                    id="btn-retry-signin-popup"
+                    type="button"
+                    onClick={handleSignIn}
+                    disabled={isProcessing}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-amber-950 dark:text-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                    <span>Try Sign In Again</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {authError && (
             <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -422,9 +501,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </svg>
                 <span>
-                  {isProcessing ? 'Connecting to Google...' : 'Sign in with Gmail / Google Account'}
+                  {isProcessing 
+                    ? 'Connecting to Google...' 
+                    : isPopupBlocked 
+                      ? 'Try Sign In Again with Gmail' 
+                      : 'Sign in with Gmail / Google Account'}
                 </span>
               </button>
+
+              {/* Fallback link for embedded / iframe environments */}
+              <div className="flex items-center justify-center pt-0.5 text-center">
+                <a
+                  id="link-auth-open-new-tab"
+                  href={standaloneAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Popups blocked? Open &amp; Sign In via Standalone Tab</span>
+                </a>
+              </div>
 
               <p className="text-center text-[10px] text-slate-400 dark:text-slate-500">
                 Guaranteed safe storage powered by Firebase Cloud Firestore.

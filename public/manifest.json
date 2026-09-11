@@ -1,0 +1,17 @@
+{
+  "short_name": "PLANVEXA",
+  "name": "PLANVEXA - Task, Habit & Schedule Suite",
+  "description": "Professional task, habit, and schedule productivity suite with Gmail authentication and persistent Firebase Firestore cloud storage.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "display": "standalone",
+  "orientation": "portrait"
+}
