@@ -22,7 +22,6 @@ import { ThemeMode } from '../types';
 interface FullPageLoginProps {
   onGoogleOAuthLogin: () => Promise<void>;
   onGoogleRedirectLogin?: () => Promise<void>;
-  onGmailLogin?: (email: string, displayName?: string) => Promise<void>;
   themeMode: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
 }
@@ -58,15 +57,19 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
       if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain') || msg.includes('unauthorized domain')) {
         setUnauthorizedDomainNotice(true);
         setErrorMessage(
-          'Firebase Domain Authorization Required: This hosting domain is not yet in your Firebase Authorized Domains list.'
+          'Firebase Domain Authorization Notice: If you recently added planvexa.vercel.app to Firebase Authorized Domains, Google servers may take 1-3 minutes to propagate. Please verify your Firebase Console settings.'
+        );
+      } else if (code === 'auth/operation-not-allowed' || msg.includes('operation-not-allowed')) {
+        setErrorMessage(
+          'Google Provider Disabled: Google Sign-in provider is not enabled in Firebase Console (Authentication > Sign-in method > Google). Please enable it in Firebase Console.'
         );
       } else if (code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked')) {
         setIsPopupBlocked(true);
         setErrorMessage(
-          'Your browser blocked the Google authentication popup. Please click "Open in New Tab" or use Direct Redirect.'
+          'Your browser blocked the Google authentication popup. Please click "Popup blocked? Use Google Direct Redirect" below or open in a new tab.'
         );
       } else if (code === 'auth/popup-closed-by-user') {
-        setErrorMessage('Sign-in popup was closed before completing. Please click below to try again.');
+        setErrorMessage('Sign-in popup was closed before completing. Please click Continue with Google to try again.');
       } else if (code === 'auth/cancelled-popup-request') {
         // Another popup was opened, ignore
       } else {
@@ -345,8 +348,8 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                 </div>
               )}
 
-              {/* Primary Google Login Button */}
-              <div className="space-y-4">
+              {/* Primary Google Login Button and Redirect Options */}
+              <div className="space-y-3">
                 <button
                   id="btn-google-login-primary"
                   type="button"
@@ -383,16 +386,29 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                         />
                       </svg>
                       <span className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-                        {unauthorizedDomainNotice ? 'Retry Google Login' : 'Continue with Google (Gmail)'}
+                        {unauthorizedDomainNotice ? 'Retry Google Login' : 'Continue with Google'}
                       </span>
                       <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
                     </>
                   )}
                 </button>
 
+                {/* Direct Google Redirect button for blocked popups or mobile */}
+                {onGoogleRedirectLogin && (
+                  <button
+                    type="button"
+                    onClick={onGoogleRedirectLogin}
+                    disabled={isOAuthSubmitting}
+                    className="w-full py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    <span>Popup blocked? Use Google Direct Redirect</span>
+                  </button>
+                )}
+
                 {/* If in iframe: Helper link to open in new tab */}
                 {isInIframe && (
-                  <div className="text-center pt-1">
+                  <div className="text-center pt-0.5">
                     <button
                       type="button"
                       onClick={handleOpenInNewWindow}
@@ -412,7 +428,7 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                     <KeyRound className="w-3.5 h-3.5 text-blue-500" />
                     <span>Authentication Method</span>
                   </span>
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Gmail Exclusively</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Google Sign-In</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="flex items-center gap-1.5 font-medium">
@@ -438,7 +454,7 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
 
       {/* Footer */}
       <footer className="w-full border-t border-slate-200/80 dark:border-slate-800/80 py-4 px-4 text-center text-xs text-slate-500 dark:text-slate-400 bg-white/60 dark:bg-slate-900/60">
-        PLANVEXA • Professional Habit &amp; Schedule Management • Exclusively Secured for Gmail Users
+        PLANVEXA • Professional Habit &amp; Schedule Management • Direct Google Sign-In
       </footer>
 
     </div>

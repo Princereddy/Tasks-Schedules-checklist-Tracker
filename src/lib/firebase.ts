@@ -121,12 +121,13 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
       await saveUserProfileDoc(profile);
       emitAuthStateChange(profile);
     } else {
-      // If Firebase Auth is not active, maintain verified Gmail session if present
-      const stored = getStoredUserProfile();
-      if (stored && (stored.authProvider === 'gmail' || stored.email?.endsWith('@gmail.com'))) {
+      // If Firebase Auth is not active or still restoring, maintain existing active session
+      const stored = getStoredUserProfile() || cachedUserProfile;
+      if (stored && stored.uid) {
         callback(stored);
       } else {
-        emitAuthStateChange(null);
+        // Only deliver null if there is genuinely no stored session
+        callback(null);
       }
     }
   });
@@ -229,18 +230,11 @@ export async function loginWithGoogle(): Promise<UserProfile> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    const userEmail = (user.email || '').toLowerCase();
-
-    // Enforce Gmail account requirement
-    if (userEmail && !userEmail.endsWith('@gmail.com') && !userEmail.endsWith('.google.com')) {
-      await signOut(auth);
-      throw new Error('Access is restricted to Gmail accounts (@gmail.com). Please select a Gmail account to proceed.');
-    }
 
     const profile: UserProfile = {
       uid: user.uid,
       email: user.email,
-      displayName: user.displayName || 'Google User',
+      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
       photoURL: user.photoURL,
       authProvider: 'google.com',
     };

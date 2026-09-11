@@ -712,7 +712,7 @@ export default function App() {
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
-  // Full-Page Auth Wall: users must log in with Gmail first before accessing the dashboard
+  // Full-Page Auth Wall: users must log in with Google to access their workspace
   if (!currentUser) {
     return (
       <FullPageLogin
