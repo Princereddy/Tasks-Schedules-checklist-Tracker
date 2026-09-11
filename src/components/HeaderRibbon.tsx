@@ -14,11 +14,16 @@ import {
   Sun, 
   Moon, 
   Laptop, 
-  Layers
+  Layers,
+  Cloud,
+  RefreshCw,
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 import { AVAILABLE_YEARS, MONTH_NAMES } from '../utils/dates';
-import { ThemeMode } from '../types';
+import { ThemeMode, SyncStatus } from '../types';
 import { soundFx } from '../utils/audio';
+import { User } from 'firebase/auth';
 
 interface HeaderRibbonProps {
   selectedYear: number;
@@ -28,6 +33,11 @@ interface HeaderRibbonProps {
   unreadNotifsCount: number;
   soundEnabled: boolean;
   themeMode: ThemeMode;
+  currentUser: User | null;
+  customDisplayName?: string | null;
+  isSyncing: boolean;
+  syncStatus?: SyncStatus;
+  onOpenAuthModal: () => void;
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   onJumpToToday: () => void;
@@ -46,6 +56,11 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
   unreadNotifsCount,
   soundEnabled,
   themeMode,
+  currentUser,
+  customDisplayName,
+  isSyncing,
+  syncStatus = 'idle',
+  onOpenAuthModal,
   onYearChange,
   onMonthChange,
   onJumpToToday,
@@ -62,25 +77,25 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
       {/* Top Office Command Bar */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         
-        {/* Main Row: Flexible, wrapped/adaptive on mobile */}
-        <div className="flex items-center justify-between min-h-[3.75rem] py-2 gap-2 sm:gap-4 flex-wrap md:flex-nowrap">
+        {/* Main Row: Flexible, wrapped/adaptive on mobile and tablet */}
+        <div className="flex items-center justify-between min-h-[3.75rem] py-2 gap-2 sm:gap-3 flex-wrap lg:flex-nowrap">
           
           {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-500/20 flex-shrink-0">
-              <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.2] flex-shrink-0" />
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-sm ring-1 ring-blue-500/20 flex-shrink-0">
+              <CheckSquare className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.2] flex-shrink-0" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-bold text-base sm:text-lg tracking-tight text-slate-900 dark:text-white">
-                  TaskFlow <span className="text-blue-600 dark:text-blue-400 font-extrabold">365</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-base sm:text-lg tracking-wider text-slate-900 dark:text-white uppercase">
+                  PLAN<span className="text-blue-600 dark:text-blue-400 font-black">VEXA</span>
                 </span>
-                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                  Fluent UI
+                <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 tracking-wide">
+                  PRO
                 </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden md:block">
-                Universal Multi-Field Task, Habit & Schedule Tracker
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden lg:block">
+                Task, Habit &amp; Schedule Productivity Suite
               </p>
             </div>
           </div>
@@ -135,14 +150,40 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
           </div>
 
           {/* Right Action Icons & Primary CTA */}
-          <div className="order-2 md:order-3 flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          <div className="order-2 md:order-3 flex items-center gap-1 sm:gap-2 min-w-0 max-w-full">
             
-            {/* Premium Theme Switch (Luxury tactile segmented slider) */}
+            {/* Mobile Single Theme Cycle Button (<sm) */}
+            <button
+              id="theme-switch-mobile"
+              type="button"
+              aria-label={`Current theme: ${themeMode}. Tap to cycle theme.`}
+              onClick={() => {
+                const next: Record<ThemeMode, ThemeMode> = {
+                  light: 'dark',
+                  dark: 'system',
+                  system: 'light',
+                };
+                onSelectTheme(next[themeMode]);
+                soundFx.playClickBeep();
+              }}
+              className="sm:hidden p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 active:scale-95 transition-all flex-shrink-0"
+              title={`Current: ${themeMode.toUpperCase()} (Tap to switch)`}
+            >
+              {themeMode === 'light' ? (
+                <Sun className="w-4 h-4 text-amber-500 fill-amber-400/30 flex-shrink-0" />
+              ) : themeMode === 'dark' ? (
+                <Moon className="w-4 h-4 text-indigo-400 fill-indigo-400/30 flex-shrink-0" />
+              ) : (
+                <Laptop className="w-4 h-4 text-blue-500 flex-shrink-0" />
+              )}
+            </button>
+
+            {/* Desktop / Tablet Premium Segmented Theme Switch (>=sm) */}
             <div 
               id="premium-theme-switch"
               role="radiogroup" 
               aria-label="Display theme mode"
-              className="flex items-center p-0.5 sm:p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 shadow-2xs flex-shrink-0"
+              className="hidden sm:flex items-center p-0.5 sm:p-1 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200/90 dark:border-slate-700/80 shadow-2xs flex-shrink-0"
             >
               <button
                 id="theme-switch-light"
@@ -210,7 +251,7 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
               id="btn-toggle-sound"
               aria-label={soundEnabled ? 'Mute audio chimes' : 'Enable audio chimes'}
               onClick={onToggleSound}
-              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative flex-shrink-0"
+              className="p-1.5 sm:p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative flex-shrink-0"
               title={soundEnabled ? 'Audio alerts active' : 'Audio alerts muted'}
             >
               {soundEnabled ? (
@@ -225,12 +266,12 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
               id="btn-open-notifications"
               aria-label="Open notifications"
               onClick={onOpenNotifications}
-              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative flex-shrink-0"
+              className="p-1.5 sm:p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative flex-shrink-0"
               title="Notifications & Reminders"
             >
               <Bell className="w-4 h-4 text-slate-700 dark:text-slate-300 flex-shrink-0" />
               {unreadNotifsCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse" />
               )}
             </button>
 
@@ -239,28 +280,105 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
               id="btn-export-data"
               aria-label="Export schedule to Excel or CSV"
               onClick={onOpenExport}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors flex-shrink-0"
+              className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors flex-shrink-0 cursor-pointer"
               title="Export to Excel / CSV"
             >
               <Download className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>Export</span>
+              <span className="hidden sm:inline">Export</span>
             </button>
+
+            {/* Google / Gmail Auth & Cloud Status */}
+            {currentUser ? (
+              <button
+                id="btn-header-profile"
+                type="button"
+                onClick={onOpenAuthModal}
+                className="flex items-center gap-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-emerald-50/70 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 transition-all shadow-2xs cursor-pointer flex-shrink-0"
+                title={`Signed in with ${currentUser.email} • Firebase Cloud Active • Click to change name or view auto-sync`}
+              >
+                <div className="relative flex-shrink-0">
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={customDisplayName || currentUser.displayName || 'User'}
+                      className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-500/50"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">
+                      {((customDisplayName || currentUser.displayName || currentUser.email || 'U'))[0].toUpperCase()}
+                    </div>
+                  )}
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${syncStatus === 'saving' || isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'} ring-1 ring-white dark:ring-slate-900`} />
+                </div>
+                <div className="hidden lg:flex flex-col items-start leading-none text-left">
+                  <span className="text-[11px] font-bold text-slate-900 dark:text-white max-w-[100px] truncate">
+                    {(customDisplayName || currentUser.displayName)?.split(' ')[0] || 'My Account'}
+                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {syncStatus === 'saving' || isSyncing ? (
+                      <span className="text-[9px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-0.5">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                        <span>Saving...</span>
+                      </span>
+                    ) : syncStatus === 'synced' ? (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5">
+                        <CheckCircle2 className="w-2.5 h-2.5" />
+                        <span>Synced</span>
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
+                        <Cloud className="w-2.5 h-2.5" />
+                        <span>Auto-Sync</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ) : (
+              <button
+                id="btn-header-auth"
+                type="button"
+                onClick={onOpenAuthModal}
+                className="flex items-center gap-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 shadow-2xs hover:shadow-xs transition-all cursor-pointer flex-shrink-0"
+                title="Sign in with Gmail to keep your data safe and never auto-deleted"
+              >
+                <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
+                </svg>
+                <span className="hidden sm:inline">Gmail Login</span>
+              </button>
+            )}
 
             {/* Quick Add Task */}
             <button
               id="btn-quick-add-task"
               onClick={onOpenNewTaskModal}
-              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow transition-all active:scale-95 ring-2 ring-blue-600/20 flex-shrink-0"
+              className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow transition-all active:scale-95 ring-2 ring-blue-600/20 flex-shrink-0"
             >
-              <Plus className="w-4 h-4 stroke-[2.5] flex-shrink-0" />
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.5] flex-shrink-0" />
               <span className="hidden sm:inline">Add Task</span>
-              <span className="sm:hidden">New</span>
             </button>
           </div>
         </div>
 
         {/* Ribbon Navigation Tabs (Desktop & Tablet) */}
-        <div className="hidden md:flex items-center gap-1 overflow-x-auto border-t border-slate-100 dark:border-slate-800 pt-1 pb-2 no-scrollbar">
+        <div className="hidden md:flex items-center gap-1 overflow-x-auto border-t border-slate-100 dark:border-slate-800 pt-1 pb-2 no-scrollbar w-full max-w-full min-w-0">
           <button
             id="tab-dashboard"
             onClick={() => onTabChange('dashboard')}

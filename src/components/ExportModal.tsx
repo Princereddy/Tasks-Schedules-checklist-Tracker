@@ -64,7 +64,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setIsExporting(true);
     setTimeout(() => {
       const csvContent = generateMonthlyCSV(reportData);
-      const filename = `TaskFlow365_AuditReport_${reportYear}_${reportMonth >= 0 ? MONTH_NAMES[reportMonth] : 'FullYear'}.csv`;
+      const filename = `PLANVEXA_AuditReport_${reportYear}_${reportMonth >= 0 ? MONTH_NAMES[reportMonth] : 'FullYear'}.csv`;
       triggerFileDownload(csvContent, filename, 'text/csv;charset=utf-8');
       setIsExporting(false);
       soundFx.playSuccessChime();
@@ -76,7 +76,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     setIsExporting(true);
     setTimeout(() => {
       const htmlContent = generateExecutiveHTMLReport(reportData);
-      const filename = `TaskFlow365_Executive_Report_${reportYear}_${reportMonth >= 0 ? MONTH_NAMES[reportMonth] : 'FullYear'}.html`;
+      const filename = `PLANVEXA_Executive_Report_${reportYear}_${reportMonth >= 0 ? MONTH_NAMES[reportMonth] : 'FullYear'}.html`;
       triggerFileDownload(htmlContent, filename, 'text/html;charset=utf-8');
       setIsExporting(false);
       soundFx.playSuccessChime();

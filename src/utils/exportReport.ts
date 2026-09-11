@@ -303,7 +303,7 @@ export function generateExecutiveHTMLReport(data: MonthlyReportData): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>TaskFlow 365 Executive Report - ${data.monthName}</title>
+  <title>PLANVEXA Executive Report - ${data.monthName}</title>
   <style>
     * {
       box-sizing: border-box;
@@ -458,7 +458,7 @@ export function generateExecutiveHTMLReport(data: MonthlyReportData): string {
     <!-- Header Ribbon Banner -->
     <div class="header-banner">
       <div>
-        <div class="brand-title">TaskFlow 365</div>
+        <div class="brand-title">PLANVEXA</div>
         <div class="brand-subtitle">Executive Productivity, Task Scheduling & Habit Audit Report</div>
       </div>
       <div class="meta-box">
@@ -515,7 +515,7 @@ export function generateExecutiveHTMLReport(data: MonthlyReportData): string {
           <li>Performance Grade: <strong>${performanceGrade}</strong>.</li>
         </ul>
         <div style="font-size: 11px; color: #64748b; font-style: italic;">
-          Verified and exported via TaskFlow 365 Professional Suite.
+          Verified and exported via PLANVEXA Professional Suite.
         </div>
       </div>
     </div>
@@ -569,8 +569,8 @@ export function generateExecutiveHTMLReport(data: MonthlyReportData): string {
     <!-- Executive Sign-Off -->
     <div class="signoff-box">
       <div>
-        <strong>TaskFlow 365 Audit Certification</strong><br />
-        Report ID: TF365-${data.year}-${data.monthIndex >= 0 ? data.monthIndex + 1 : 'ALL'}-${Date.now().toString().slice(-6)}
+        <strong>PLANVEXA Audit Certification</strong><br />
+        Report ID: PVX-${data.year}-${data.monthIndex >= 0 ? data.monthIndex + 1 : 'ALL'}-${Date.now().toString().slice(-6)}
       </div>
       <div>
         <strong>Reviewed & Signed:</strong> ____________________________
@@ -602,7 +602,7 @@ export function generateMonthlyCSV(data: MonthlyReportData): string {
   const lines: string[] = [];
 
   // Metadata block
-  lines.push(`"TASKFLOW 365 - EXECUTIVE PRODUCTIVITY AUDIT REPORT"`);
+  lines.push(`"PLANVEXA - EXECUTIVE PRODUCTIVITY AUDIT REPORT"`);
   lines.push(`"Reporting Period:","${data.monthName}"`);
   lines.push(`"Generated Date:","${new Date().toISOString().split('T')[0]}"`);
   lines.push(`"Overall Completion Rate:","${data.overallCompletionRate}%"`);
@@ -712,6 +712,6 @@ export function openReportInNewWindow(htmlContent: string) {
     reportWindow.document.close();
   } else {
     // Fallback if popups blocked: trigger download
-    triggerFileDownload(htmlContent, 'TaskFlow365_Executive_Report.html', 'text/html;charset=utf-8');
+    triggerFileDownload(htmlContent, 'PLANVEXA_Executive_Report.html', 'text/html;charset=utf-8');
   }
 }

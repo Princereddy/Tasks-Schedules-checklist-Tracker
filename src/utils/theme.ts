@@ -1,10 +1,11 @@
 import { ThemeMode } from '../types';
 
-const THEME_STORAGE_KEY = 'taskflow_theme_mode';
+const THEME_STORAGE_KEY = 'planvexa_theme_mode';
+const LEGACY_THEME_KEY = 'taskflow_theme_mode';
 
 export function getStoredTheme(): ThemeMode {
   try {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) || localStorage.getItem(LEGACY_THEME_KEY);
     if (saved === 'light' || saved === 'dark' || saved === 'system') {
       return saved;
     }

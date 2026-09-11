@@ -151,35 +151,37 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
   const strokeDashoffset = circumference - (completionRate / 100) * circumference;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       
       {/* Metric Stat Ribbon Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full min-w-0">
         
         {/* Card 1: Today's Completion Gauge */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-4 relative transition-colors duration-200">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3 sm:gap-4 relative transition-colors duration-200 min-w-0 overflow-hidden">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate block">
               Today's Completion
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-1 flex-wrap">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 {completionRate}%
               </span>
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
                 ({completedToday}/{totalToday} tasks)
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 flex items-center gap-1.5 truncate">
               <Sparkles className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-              {completedToday === totalToday && totalToday > 0
-                ? 'All goals crushed today!'
-                : `${totalToday - completedToday} remaining to finish`}
+              <span className="truncate">
+                {completedToday === totalToday && totalToday > 0
+                  ? 'All goals crushed today!'
+                  : `${totalToday - completedToday} remaining to finish`}
+              </span>
             </p>
           </div>
 
           {/* Radial Circular Progress - Fully visible with generous viewBox padding */}
-          <div className="relative flex-shrink-0 w-24 h-24 flex items-center justify-center p-1">
+          <div className="relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center p-1">
             <svg viewBox="0 0 96 96" className="w-full h-full transform -rotate-90 overflow-visible">
               <circle
                 cx="48"
@@ -204,108 +206,108 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <CheckCircle2 className={`w-6 h-6 flex-shrink-0 ${completionRate === 100 ? 'text-emerald-500' : 'text-blue-600 dark:text-blue-400'}`} />
+              <CheckCircle2 className={`w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0 ${completionRate === 100 ? 'text-emerald-500' : 'text-blue-600 dark:text-blue-400'}`} />
             </div>
           </div>
         </div>
 
         {/* Card 2: Streak Power */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between transition-colors duration-200">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3 transition-colors duration-200 min-w-0 overflow-hidden">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate block">
               Current Streak
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-amber-500 tracking-tight">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-1">
+              <span className="text-2xl sm:text-3xl font-black text-amber-500 tracking-tight">
                 {streakStats.currentStreak}
               </span>
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Days Active</span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">Days Active</span>
             </div>
-            <div className="flex items-center gap-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
+            <div className="flex items-center gap-1 mt-2 text-xs text-slate-500 dark:text-slate-400 truncate">
               <Trophy className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-              <span>Record Best: <strong className="text-slate-800 dark:text-slate-200">{streakStats.longestStreak} days</strong></span>
+              <span className="truncate">Record Best: <strong className="text-slate-800 dark:text-slate-200">{streakStats.longestStreak} days</strong></span>
             </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-900/60 flex items-center justify-center text-amber-500 shadow-2xs flex-shrink-0">
-            <Flame className="w-7 h-7 fill-amber-500/20 stroke-[2.2] flex-shrink-0" />
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-900/60 flex items-center justify-center text-amber-500 shadow-2xs flex-shrink-0">
+            <Flame className="w-6 h-6 sm:w-7 sm:h-7 fill-amber-500/20 stroke-[2.2] flex-shrink-0" />
           </div>
         </div>
 
         {/* Card 3: In Progress & Timings */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between transition-colors duration-200">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3 transition-colors duration-200 min-w-0 overflow-hidden">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate block">
               Scheduled Blocks
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-1">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 {totalToday}
               </span>
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Work & Habit Slots</span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">Work & Habit Slots</span>
             </div>
-            <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+            <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+              <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400 truncate">
                 <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
                 {inProgressToday} In-Flight
               </span>
-              <span className="inline-flex items-center gap-1 font-medium text-slate-400 dark:text-slate-500">
+              <span className="inline-flex items-center gap-1 font-medium text-slate-400 dark:text-slate-500 truncate">
                 <span className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600 flex-shrink-0" />
                 {pendingToday} Pending
               </span>
             </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-2xs flex-shrink-0">
-            <Clock className="w-7 h-7 stroke-[2] flex-shrink-0" />
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-2xs flex-shrink-0">
+            <Clock className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2] flex-shrink-0" />
           </div>
         </div>
 
         {/* Card 4: Field Diversity */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between transition-colors duration-200">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex items-center justify-between gap-3 transition-colors duration-200 min-w-0 overflow-hidden">
+          <div className="min-w-0">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate block">
               Active Domains
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-1">
+              <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                 {categoryStats.length}
               </span>
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Fields / Categories</span>
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 truncate">Fields / Categories</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 truncate">
               Cross-discipline productivity
             </p>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-900/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-2xs flex-shrink-0">
-            <PieIcon className="w-7 h-7 stroke-[2] flex-shrink-0" />
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-900/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-2xs flex-shrink-0">
+            <PieIcon className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2] flex-shrink-0" />
           </div>
         </div>
 
       </div>
 
       {/* Main Interactive Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
         
         {/* Interactive 7-Day Completion Trend Chart (SVG) */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between transition-colors duration-200">
-          <div className="flex items-center justify-between mb-4">
+        <div className="lg:col-span-2 min-w-0 bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between transition-colors duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4">
             <div>
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                 <h3 className="font-bold text-base text-slate-800 dark:text-slate-100">
-                  7-Day Consistency & Completion Trends
+                  7-Day Consistency &amp; Completion Trends
                 </h3>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Hover columns to inspect completion rates across consecutive days
+                Hover or tap columns to inspect completion rates across consecutive days
               </p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700">
+            <span className="self-start sm:self-auto text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg border border-slate-200 dark:border-slate-700">
               Interactive Analytics
             </span>
           </div>
 
           {/* SVG Bar Visualizer */}
-          <div className="h-56 w-full flex items-end gap-3 sm:gap-6 pt-6 pb-2 px-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="h-56 w-full flex items-end gap-1.5 sm:gap-4 md:gap-6 pt-6 pb-2 px-1 sm:px-2 border-b border-slate-100 dark:border-slate-800">
             {trendDays.map((item, idx) => {
               const isHovered = hoveredBarIndex === idx;
               const barHeight = Math.max(item.percent, 8); // minimum visible height
@@ -364,8 +366,8 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
             })}
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-3">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 pt-3">
+            <div className="flex items-center gap-3 sm:gap-4">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 flex-shrink-0" />
                 100% Perfect
@@ -375,12 +377,12 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
                 Active Today
               </span>
             </div>
-            <span>Calculated from active weekday schedules</span>
+            <span className="text-[11px] sm:text-xs">Calculated from active weekday schedules</span>
           </div>
         </div>
 
         {/* Category & Field Breakdown */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between transition-colors duration-200">
+        <div className="min-w-0 bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs flex flex-col justify-between transition-colors duration-200">
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-base text-slate-800 dark:text-slate-100">

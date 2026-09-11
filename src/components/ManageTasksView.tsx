@@ -14,7 +14,8 @@ import {
   Square,
   Bell,
   Calendar,
-  CheckCheck
+  CheckCheck,
+  Download
 } from 'lucide-react';
 import { TaskCategory, TaskItem } from '../types';
 import { WEEKDAY_LABELS, formatTime12h } from '../utils/dates';
@@ -24,6 +25,7 @@ interface ManageTasksViewProps {
   tasks: TaskItem[];
   categories: TaskCategory[];
   onOpenNewTaskModal: () => void;
+  onOpenExport?: () => void;
   onEditTask: (task: TaskItem) => void;
   onDeleteTask: (taskId: string) => void;
   onBatchDeleteTasks?: (taskIds: string[]) => void;
@@ -38,6 +40,7 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
   tasks,
   categories,
   onOpenNewTaskModal,
+  onOpenExport,
   onEditTask,
   onDeleteTask,
   onBatchDeleteTasks,
@@ -135,13 +138,13 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto">
           <button
             onClick={() => {
               setIsMultiSelectMode(!isMultiSelectMode);
               soundFx.playClickBeep();
             }}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`flex-1 sm:flex-none justify-center px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
               isMultiSelectMode || selectedTaskIds.length > 0
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -151,10 +154,22 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
             <span>{isMultiSelectMode ? 'Selecting' : 'Multi-Select'}</span>
           </button>
 
+          {onOpenExport && (
+            <button
+              id="btn-manage-export"
+              onClick={onOpenExport}
+              className="flex-1 sm:flex-none justify-center px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer flex-shrink-0"
+              title="Export schedule to Excel, CSV, or Audit Report"
+            >
+              <Download className="w-4 h-4 flex-shrink-0" />
+              <span>Export</span>
+            </button>
+          )}
+
           <button
             id="btn-manage-add-task"
             onClick={onOpenNewTaskModal}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95 flex-shrink-0"
+            className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95 flex-shrink-0"
           >
             <Plus className="w-4 h-4 stroke-[2.5] flex-shrink-0" />
             <span>Add New Task</span>
@@ -298,7 +313,7 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
               className={`p-4 rounded-xl border transition-all ${
                 isSelected
                   ? 'bg-blue-50/60 dark:bg-blue-950/40 border-blue-400/80 dark:border-blue-500/80 shadow-xs ring-1 ring-blue-400/50'
-                  : 'bg-white dark:bg-slate-850 border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-2xs'
+                  : 'bg-white dark:bg-slate-800 border-slate-200/90 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-2xs'
               }`}
             >
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -365,22 +380,54 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
                     )}
 
                     {/* Timings */}
-                    <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 pt-1">
-                      <div className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                        <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-                        <span>{formatTime12h(task.defaultStartTime)} – {formatTime12h(task.defaultEndTime)}</span>
+                    {task.customDayTimes && Object.keys(task.customDayTimes).length > 0 ? (
+                      <div className="pt-1 space-y-1">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                          <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>Separate Weekday Timings:</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {task.activeWeekdays.map((dayIdx) => {
+                            const dayMeta = WEEKDAY_LABELS[dayIdx];
+                            const dayTime = task.customDayTimes?.[dayIdx] || {
+                              startTime: task.defaultStartTime,
+                              endTime: task.defaultEndTime,
+                            };
+                            return (
+                              <span
+                                key={dayIdx}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-[10px] sm:text-[11px] font-medium border border-slate-200/80 dark:border-slate-700"
+                              >
+                                <strong className="font-bold text-blue-700 dark:text-blue-300">{dayMeta.short}:</strong>
+                                <span>{formatTime12h(dayTime.startTime)} – {formatTime12h(dayTime.endTime)}</span>
+                              </span>
+                            );
+                          })}
+                          {task.subtasks && task.subtasks.length > 0 && (
+                            <span className="text-slate-400 dark:text-slate-500 text-[11px]">
+                              • {task.subtasks.length} sub-steps
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {task.subtasks && task.subtasks.length > 0 && (
-                        <span className="text-slate-400 dark:text-slate-500">
-                          • {task.subtasks.length} sub-steps
-                        </span>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 pt-1">
+                        <div className="flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                          <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                          <span>{formatTime12h(task.defaultStartTime)} – {formatTime12h(task.defaultEndTime)}</span>
+                        </div>
+                        {task.subtasks && task.subtasks.length > 0 && (
+                          <span className="text-slate-400 dark:text-slate-500">
+                            • {task.subtasks.length} sub-steps
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Center: Weekday Selector Buttons (S, M, T, W, T, F, S) */}
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200/80 dark:border-slate-700 flex-shrink-0">
+                <div className="flex items-center justify-between sm:justify-start gap-1 sm:gap-2 bg-slate-50 dark:bg-slate-800 p-1.5 sm:p-2 rounded-xl border border-slate-200/80 dark:border-slate-700 w-full sm:w-auto overflow-x-auto min-w-0 flex-shrink-0">
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1 hidden sm:inline">
                     Weekdays:
                   </span>
@@ -410,7 +457,7 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
                 </div>
 
                 {/* Right: Actions (Edit, Duplicate, Delete) */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center justify-end gap-1.5 w-full sm:w-auto flex-shrink-0">
                   <button
                     id={`btn-manage-edit-${task.id}`}
                     aria-label={`Edit ${task.title}`}
@@ -447,14 +494,33 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
           );
         })}
 
-        {/* Empty Search / Filter state */}
-        {filteredTasks.length === 0 && (
+        {/* Empty States */}
+        {tasks.length === 0 ? (
+          <div className="py-14 text-center rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30 p-8">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto mb-3">
+              <Calendar className="w-6 h-6 flex-shrink-0" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+              No tasks or routines yet
+            </h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1 mb-4">
+              Your schedule is fresh and clean. Add your first routine, habit, or workflow with custom weekday timings.
+            </p>
+            <button
+              onClick={onOpenNewTaskModal}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Add Your First Task</span>
+            </button>
+          </div>
+        ) : filteredTasks.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
               No tasks match your filter criteria.
             </p>
           </div>
-        )}
+        ) : null}
       </div>
 
     </div>

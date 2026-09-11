@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Information about the registered user",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth user ID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "photoURL": { "type": "string", "description": "Profile picture URL" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "tasks": {
+      "title": "Task Item",
+      "description": "User created routine or habit task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+        "activeWeekdays": { "type": "array", "items": { "type": "number" } },
+        "defaultStartTime": { "type": "string" },
+        "defaultEndTime": { "type": "string" },
+        "reminderEnabled": { "type": "boolean" },
+        "subtasks": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "categoryId", "activeWeekdays"]
+    },
+    "progress": {
+      "title": "Task Daily Progress",
+      "description": "Completion and habit status for a task on a specific date",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "userId": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "skipped"] },
+        "completedAt": { "type": "string" },
+        "completedSubtasks": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "taskId", "userId", "dateKey", "status"]
+    },
+    "categories": {
+      "title": "Task Category",
+      "description": "Custom or default category discipline",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "color": { "type": "string" },
+        "icon": { "type": "string" }
+      },
+      "required": ["id", "name", "color"]
+    },
+    "settings": {
+      "title": "User Preferences",
+      "description": "User settings such as audio effects and display options",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "soundEnabled": { "type": "boolean" },
+        "theme": { "type": "string" }
+      },
+      "required": ["userId"]
+    }
+  }
+}

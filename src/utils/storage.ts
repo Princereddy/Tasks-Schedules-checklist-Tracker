@@ -276,8 +276,8 @@ export function loadNotificationsFromStorage(): AppNotification[] {
   return [
     {
       id: 'notif_welcome',
-      title: 'Task & Habit Flow Tracker Activated',
-      message: 'Plan your year, select working weekdays (S, M, T, W, T, F, S), set daily timings, and monitor real-time streaks.',
+      title: 'PLANVEXA Workspace Activated',
+      message: 'Plan your year, configure weekday schedules & timings, track daily habits, and review real-time analytics.',
       time: '09:00',
       type: 'info',
       read: false,

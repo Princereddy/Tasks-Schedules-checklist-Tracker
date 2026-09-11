@@ -1,6 +1,6 @@
 {
-  "name": "Task & Habit Flow Tracker",
-  "description": "Professional MS Office styled task and habit tracker with multi-year calendar scheduling, weekday timings, real-time checklist, interactive progress charts, and streak monitoring.",
+  "name": "PLANVEXA",
+  "description": "PLANVEXA - Professional task, habit, and schedule productivity suite with Gmail authentication and persistent Firebase Firestore cloud storage, ensuring individual user data is safe, isolated, and never auto-deleted.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

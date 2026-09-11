@@ -76,39 +76,39 @@ export const HabitMatrixView: React.FC<HabitMatrixViewProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs p-5 sm:p-6 overflow-hidden transition-colors duration-200">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs p-3 sm:p-6 overflow-hidden transition-colors duration-200 w-full max-w-full min-w-0">
       
       {/* Title & Legend */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100 dark:border-slate-800">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-slate-100 dark:border-slate-800">
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 flex-shrink-0">
               <Grid3X3 className="w-5 h-5 flex-shrink-0" />
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
-                Monthly Habit & Task Consistency Matrix
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
+                Monthly Habit &amp; Task Consistency Matrix
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                MS Excel spreadsheet style grid for {MONTH_NAMES[selectedMonth]} {selectedYear}. Click any cell to toggle completion.
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                Spreadsheet matrix for {MONTH_NAMES[selectedMonth]} {selectedYear}. Tap cell to toggle.
               </p>
             </div>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex-shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex-shrink-0 overflow-x-auto max-w-full">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-bold flex-shrink-0">
               ✓
             </span>
             <span>Completed</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 flex-shrink-0" />
             <span>Scheduled</span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="w-3 h-3 text-slate-300 dark:text-slate-600 text-center font-bold flex-shrink-0">
               –
             </span>
@@ -117,8 +117,8 @@ export const HabitMatrixView: React.FC<HabitMatrixViewProps> = ({
         </div>
       </div>
 
-      {/* Responsive Matrix Grid Table */}
-      <div className="mt-4 overflow-x-auto pb-4">
+      {/* Responsive Matrix Grid Table with Horizontal Touch Scroll */}
+      <div className="mt-4 overflow-x-auto pb-4 max-w-full touch-pan-x">
         <table className="w-full border-collapse text-left min-w-[950px]">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/70">

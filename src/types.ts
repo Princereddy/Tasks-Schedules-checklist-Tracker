@@ -70,3 +70,14 @@ export interface AppNotification {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+
+export type SyncStatus = 'idle' | 'saving' | 'synced' | 'error';
+
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  createdAt?: string;
+  lastLoginAt?: string;
+}

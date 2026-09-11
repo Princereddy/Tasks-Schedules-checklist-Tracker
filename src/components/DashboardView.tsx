@@ -78,21 +78,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full min-w-0">
       
       {/* Welcome & Context Banner */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-600 rounded-2xl text-white p-6 sm:p-7 shadow-md relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-600 rounded-2xl text-white p-5 sm:p-7 shadow-md relative overflow-hidden w-full min-w-0">
         {/* Background Decorative Circles */}
         <div className="absolute -right-8 -bottom-10 w-48 h-48 rounded-full bg-white/10 blur-xl pointer-events-none" />
         <div className="absolute right-36 -top-12 w-32 h-32 rounded-full bg-cyan-400/15 blur-lg pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5 max-w-2xl">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-5">
+          <div className="space-y-1.5 max-w-2xl min-w-0">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white backdrop-blur-xs border border-white/20 mb-1">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Executive Productivity Engine</span>
+              <span>PLANVEXA Productivity Engine</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight truncate">
               {getFormattedDisplayDate(selectedYear, selectedMonth, selectedDay)}
             </h2>
             <p className="text-xs sm:text-sm text-blue-100 font-medium">
@@ -100,21 +100,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap w-full sm:w-auto">
             <button
               id="btn-dash-quick-checklist"
               onClick={onGoToChecklistTab}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-blue-900 bg-white hover:bg-blue-50 transition-all shadow-sm active:scale-95"
+              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold text-blue-900 bg-white hover:bg-blue-50 transition-all shadow-sm active:scale-95 cursor-pointer"
             >
-              <CheckSquare className="w-4 h-4 text-blue-600" />
+              <CheckSquare className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <span>Day Checklist</span>
             </button>
             <button
               id="btn-dash-add-task"
               onClick={onOpenNewTaskModal}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all backdrop-blur-xs active:scale-95"
+              className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold text-white bg-white/20 hover:bg-white/30 border border-white/30 transition-all backdrop-blur-xs active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 flex-shrink-0" />
               <span>New Task</span>
             </button>
           </div>
@@ -132,10 +132,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       />
 
       {/* Two-Column Section: Active Focus Card & Today's Checklist Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full min-w-0">
         
         {/* Left Column (2 cols): Today's Active Schedule & Interactive Quick-Checklist */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs p-5 sm:p-6 space-y-4 transition-colors duration-200">
+        <div className="lg:col-span-2 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs p-4 sm:p-6 space-y-4 transition-colors duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
               <h3 className="font-bold text-slate-900 dark:text-white text-base">
@@ -226,7 +226,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Right Column (1 col): Current Focus Block & Quick Tips */}
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Active Now or Next Focus Card */}
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-5 rounded-2xl shadow-sm space-y-3 relative overflow-hidden border border-slate-800">
             <div className="flex items-center justify-between">

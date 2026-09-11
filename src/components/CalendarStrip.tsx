@@ -75,26 +75,26 @@ export const CalendarStrip: React.FC<CalendarStripProps> = ({
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   return (
-    <div className="bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 shadow-2xs py-2 sm:py-3 px-3 sm:px-6 lg:px-8 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto flex flex-col gap-1.5 sm:gap-2">
+    <div className="bg-white dark:bg-slate-900 border-b border-slate-200/90 dark:border-slate-800 shadow-2xs py-2 sm:py-3 px-3 sm:px-6 lg:px-8 transition-colors duration-200 w-full max-w-full overflow-hidden">
+      <div className="max-w-7xl mx-auto flex flex-col gap-1.5 sm:gap-2 w-full min-w-0">
         
         {/* Strip Top Row: Current month navigation and formatted date */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between min-w-0 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
             <span className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex-shrink-0">
               <CalIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
             </span>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <h2 className="text-xs sm:text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 truncate">
+              <h2 className="text-xs sm:text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight flex-shrink-0">
                 {MONTH_NAMES[selectedMonth]} {selectedYear}
               </h2>
-              <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate hidden xs:inline sm:inline">
                 • {getFormattedDisplayDate(selectedYear, selectedMonth, selectedDay)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button
               id="btn-prev-month"
               aria-label="Previous month"
@@ -119,7 +119,7 @@ export const CalendarStrip: React.FC<CalendarStripProps> = ({
         {/* Days of Month Horizontal Scrubber with improved touch sizing and no cropping */}
         <div 
           ref={scrollContainerRef}
-          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-2.5 px-1.5 no-scrollbar scroll-smooth"
+          className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-2.5 px-1.5 no-scrollbar scroll-smooth w-full max-w-full min-w-0"
         >
           {daysArray.map((day) => {
             const dayOfWeek = getDayOfWeek(selectedYear, selectedMonth, day);
