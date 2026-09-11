@@ -16,6 +16,7 @@ import { ExportModal } from './components/ExportModal';
 import { BottomNavBar } from './components/BottomNavBar';
 import { AuthModal } from './components/AuthModal';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
+import { RedirectAuthBridge } from './components/RedirectAuthBridge';
 
 import { 
   TaskItem, 
@@ -64,9 +65,20 @@ import {
   batchDeleteTasksFromFirestore,
   batchSaveProgressToFirestore,
   updateUserDisplayName,
+  checkRedirectResult,
 } from './lib/firebase';
 
 export default function App() {
+  // Check if we are in direct OAuth redirect bridge mode
+  const isAuthRedirectMode = typeof window !== 'undefined' && (
+    new URLSearchParams(window.location.search).get('auth_mode') === 'redirect' ||
+    new URLSearchParams(window.location.search).get('action') === 'google_redirect'
+  );
+
+  if (isAuthRedirectMode) {
+    return <RedirectAuthBridge />;
+  }
+
   const todayParts = getTodayDateParts();
 
   // State: Theme Mode (Light / Dark / System)
@@ -183,6 +195,38 @@ export default function App() {
       if (unsubProgressRef.current) unsubProgressRef.current();
     };
   }, []);
+
+  // Check redirect result on app initialization for standalone windows
+  useEffect(() => {
+    checkRedirectResult().catch((err) => {
+      console.warn('Silent checkRedirectResult:', err);
+    });
+  }, []);
+
+  // Listen for auth success postMessage from standalone auth window
+  useEffect(() => {
+    const handleAuthMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PLANVEXA_AUTH_SUCCESS') {
+        setIsAuthModalOpen(false);
+        soundFx.playSuccessChime();
+        const notif = notificationService.createNotification(
+          '☁️ Google Account Connected',
+          `Signed in successfully! Your tasks and habits are syncing with Cloud Firestore.`,
+          'info'
+        );
+        setNotifications((prev) => [notif, ...prev]);
+      }
+    };
+    window.addEventListener('message', handleAuthMessage);
+    return () => window.removeEventListener('message', handleAuthMessage);
+  }, []);
+
+  // Auto-close auth modal as soon as currentUser is detected
+  useEffect(() => {
+    if (currentUser && isAuthModalOpen) {
+      setIsAuthModalOpen(false);
+    }
+  }, [currentUser, isAuthModalOpen]);
 
   // Check for ?action=signin query parameter (e.g. from popup-blocked new-tab fallback)
   useEffect(() => {

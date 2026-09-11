@@ -3,6 +3,8 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged,
   updateProfile,
@@ -47,13 +49,9 @@ export const db: Firestore =
     : getFirestore(app);
 
 /**
- * Sign in with Google (Gmail)
+ * Persist / update user profile in Firestore
  */
-export async function loginWithGoogle(): Promise<User> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = result.user;
-
-  // Persist / update user profile in Firestore
+export async function saveUserProfile(user: User): Promise<void> {
   try {
     const userRef = doc(db, 'users', user.uid);
     const existingSnap = await getDoc(userRef);
@@ -78,8 +76,58 @@ export async function loginWithGoogle(): Promise<User> {
   } catch (err) {
     console.warn('Could not save user profile record:', err);
   }
+}
 
-  return user;
+/**
+ * Sign in with Google (Gmail)
+ * Uses popup by default, with automatic graceful redirect fallback in top-level tabs if popup is blocked
+ */
+export async function loginWithGoogle(): Promise<User> {
+  const isTopLevel = typeof window !== 'undefined' && window.self === window.top;
+
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    await saveUserProfile(user);
+    return user;
+  } catch (err: any) {
+    const code = err?.code || '';
+    const msg = (err?.message || '').toLowerCase();
+    const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
+
+    // If popup blocked and running in top-level tab, smoothly proceed with redirect
+    if (isBlocked && isTopLevel) {
+      console.log('Popup blocked in top-level window, initiating direct Google OAuth redirect...');
+      await signInWithRedirect(auth, googleProvider);
+      return new Promise(() => {}); // Will navigate to accounts.google.com
+    }
+
+    throw err;
+  }
+}
+
+/**
+ * Direct Google OAuth Redirect (100% immune to popup blockers and cross-origin iframe restrictions)
+ */
+export async function loginWithGoogleRedirect(): Promise<void> {
+  await signInWithRedirect(auth, googleProvider);
+}
+
+/**
+ * Check if the user has returned from a Google OAuth redirect
+ */
+export async function checkRedirectResult(): Promise<User | null> {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      await saveUserProfile(result.user);
+      return result.user;
+    }
+    return null;
+  } catch (err) {
+    console.error('Error handling redirect result:', err);
+    return null;
+  }
 }
 
 /**
