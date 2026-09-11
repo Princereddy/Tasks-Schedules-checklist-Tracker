@@ -296,20 +296,20 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
 
                   <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-800/80 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 font-medium">This App's Domain:</span>
+                      <span className="text-slate-500 font-medium">Your Vercel Domain:</span>
                       <button
                         type="button"
-                        onClick={() => handleCopy(currentHostname, 'host')}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-mono text-[10.5px] cursor-pointer transition-colors"
-                        title="Click to copy domain"
+                        onClick={() => handleCopy('planvexa.vercel.app', 'host')}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 font-mono text-[10.5px] font-bold cursor-pointer transition-colors"
+                        title="Copy planvexa.vercel.app"
                       >
                         {copiedHost ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                        <span>{currentHostname || 'current-domain'}</span>
+                        <span>planvexa.vercel.app</span>
                       </button>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800">
-                      <span className="text-slate-500 font-medium">For Vercel (all deployments):</span>
+                      <span className="text-slate-500 font-medium">Or all Vercel domains:</span>
                       <button
                         type="button"
                         onClick={() => handleCopy('vercel.app', 'vercel')}
@@ -323,11 +323,11 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                   </div>
 
                   <div className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
-                    <div><strong>Steps to fix in 30 seconds:</strong></div>
+                    <div><strong>Quick 3-step setup in Firebase:</strong></div>
                     <ol className="list-decimal list-inside space-y-0.5 pl-1 text-[10.5px]">
-                      <li>Go to <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong></li>
-                      <li>Click <strong>Add domain</strong> and paste <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 font-mono font-bold">vercel.app</code> (or current domain)</li>
-                      <li>Click the <strong>Retry Google Login</strong> button below</li>
+                      <li>Open <strong>Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains</strong></li>
+                      <li>Click <strong>Add domain</strong> and enter <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/60 font-mono font-bold">planvexa.vercel.app</code> (or <code className="px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 font-mono font-bold">vercel.app</code>)</li>
+                      <li>Click <strong>Save</strong> and return here to log in!</li>
                     </ol>
                   </div>
 
