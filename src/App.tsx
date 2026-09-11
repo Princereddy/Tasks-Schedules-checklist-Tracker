@@ -187,12 +187,15 @@ export default function App() {
           setIsSyncing(false);
         }
       } else {
-        setCurrentUser(null);
-        setCustomDisplayName(null);
-        setSyncStatus('idle');
-        // On logout, fallback to local storage
-        setTasks(loadTasksFromStorage());
-        setProgress(loadProgressFromStorage());
+        const stored = getStoredUserProfile();
+        if (!stored) {
+          setCurrentUser(null);
+          setCustomDisplayName(null);
+          setSyncStatus('idle');
+          // On logout, fallback to local storage
+          setTasks(loadTasksFromStorage());
+          setProgress(loadProgressFromStorage());
+        }
       }
       setIsAuthInitializing(false);
     });
@@ -362,16 +365,23 @@ export default function App() {
   };
 
   // Auth Operations
-  const handleLogin = () => {
-    return loginWithGoogle()
-      .then((profile) => {
-        setIsSyncing(true);
+  const handleLogin = async () => {
+    setIsSyncing(true);
+    try {
+      const profile = await loginWithGoogle();
+      if (profile) {
         setCurrentUser(profile);
         soundFx.playSuccessChime();
-      })
-      .finally(() => {
-        setIsSyncing(false);
-      });
+        const notif = notificationService.createNotification(
+          '☁️ Google Account Connected',
+          `Welcome, ${profile.displayName || profile.email}! Workspace connected with Cloud Firestore.`,
+          'info'
+        );
+        setNotifications((prev) => [notif, ...prev]);
+      }
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleLogout = async () => {

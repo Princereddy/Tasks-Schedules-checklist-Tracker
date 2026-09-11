@@ -35,6 +35,9 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
     setIsOAuthSubmitting(true);
 
     onGoogleOAuthLogin()
+      .then(() => {
+        // Successful login: parent onAppAuthStateChanged will update currentUser
+      })
       .catch((err: any) => {
         console.error('Google Sign-In notice:', err);
         setIsOAuthSubmitting(false);

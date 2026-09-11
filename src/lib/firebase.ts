@@ -100,14 +100,19 @@ function emitAuthStateChange(user: UserProfile | null): void {
 }
 
 /**
- * Unified Auth State Observer (supports both Simple Gmail Login and Firebase OAuth)
+ * Unified Auth State Observer (supports both Google GIS, Firebase Auth, and persistent sessions)
  */
 export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
   authListeners.add(callback);
 
-  // Deliver current cached or Firebase Auth user immediately
+  // Deliver current cached or persistent stored user immediately
   const initial = cachedUserProfile || getStoredUserProfile() || formatUserProfile(auth.currentUser);
-  callback(initial);
+  if (initial) {
+    cachedUserProfile = initial;
+    callback(initial);
+  } else {
+    callback(null);
+  }
 
   // Also bridge with Firebase Auth native observer
   const unsubFirebase = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -122,12 +127,12 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
       await saveUserProfileDoc(profile);
       emitAuthStateChange(profile);
     } else {
-      // If Firebase Auth is not active or still restoring, maintain existing active session
+      // If Firebase Auth emits null but user has an active stored session, KEEP them logged in!
       const stored = getStoredUserProfile() || cachedUserProfile;
       if (stored && stored.uid) {
+        // Keep active session alive - do NOT auto-logout
         callback(stored);
       } else {
-        // Only deliver null if there is genuinely no stored session
         callback(null);
       }
     }
@@ -341,11 +346,46 @@ export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
 }
 
 /**
- * Sign in with Google (Gmail) via Firebase Auth Full-Screen Redirect
- * Completely eliminates popup window blocker errors by using full-screen navigation.
+ * Sign in with Google (Gmail)
+ * Uses Google Identity Services / Firebase Auth to authenticate the user and establish a persistent session.
  */
-export async function loginWithGoogle(): Promise<void> {
-  await signInWithRedirect(auth, googleProvider);
+export async function loginWithGoogle(): Promise<UserProfile | void> {
+  // Strategy 1: If Google Identity Services SDK is loaded on window, use it for 100% reliable OAuth
+  if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+    try {
+      const profile = await loginWithGoogleGsiTokenClient();
+      return profile;
+    } catch (gisErr: any) {
+      console.warn('GIS Token client notice, attempting Firebase Auth fallback:', gisErr);
+      const msg = (gisErr?.message || '').toLowerCase();
+      if (msg.includes('user_cancel') || msg.includes('cancelled') || msg.includes('closed')) {
+        throw gisErr;
+      }
+    }
+  }
+
+  // Strategy 2: Firebase Auth Popup / Redirect
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    const profile: UserProfile = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
+      photoURL: user.photoURL,
+      authProvider: 'google.com',
+    };
+    await saveUserProfileDoc(profile);
+    emitAuthStateChange(profile);
+    return profile;
+  } catch (popupErr: any) {
+    const code = popupErr?.code || '';
+    if (code === 'auth/popup-closed-by-user') {
+      throw popupErr;
+    }
+    console.warn('Popup notice, invoking Firebase Auth redirect:', popupErr);
+    await signInWithRedirect(auth, googleProvider);
+  }
 }
 
 /**
