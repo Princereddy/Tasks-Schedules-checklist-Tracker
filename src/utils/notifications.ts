@@ -4,43 +4,68 @@ class NotificationService {
   private permissionGranted: boolean = false;
 
   constructor() {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      this.permissionGranted = Notification.permission === 'granted';
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window && typeof Notification !== 'undefined') {
+        this.permissionGranted = Notification.permission === 'granted';
+      }
+    } catch {
+      this.permissionGranted = false;
     }
   }
 
   public async requestPermission(): Promise<boolean> {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined' || !('Notification' in window)) {
       return false;
     }
     try {
-      const permission = await Notification.requestPermission();
-      this.permissionGranted = permission === 'granted';
-      return this.permissionGranted;
+      if (typeof Notification.requestPermission === 'function') {
+        const permission = await Notification.requestPermission();
+        this.permissionGranted = permission === 'granted';
+        return this.permissionGranted;
+      }
+      return false;
     } catch {
       return false;
     }
   }
 
   public hasPermission(): boolean {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      return Notification.permission === 'granted';
+    try {
+      if (typeof window !== 'undefined' && typeof Notification !== 'undefined' && 'Notification' in window) {
+        return Notification.permission === 'granted';
+      }
+    } catch {
+      return false;
     }
     return false;
   }
 
   public sendPush(title: string, options?: NotificationOptions) {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-      try {
-        new Notification(title, {
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          ...options,
-        });
-      } catch {
-        // Fallback or ignore in strict iframe environments
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+    try {
+      if (Notification.permission === 'granted') {
+        // Guard against environments (e.g. mobile Chrome / iframes) where `new Notification()` throws Illegal constructor
+        try {
+          if (typeof Notification === 'function') {
+            const notif = new Notification(title, {
+              icon: '/favicon.svg',
+              badge: '/favicon.svg',
+              ...options,
+            });
+            setTimeout(() => {
+              try {
+                notif.close();
+              } catch {
+                // Ignore close errors
+              }
+            }, 5000);
+          }
+        } catch {
+          // Ignore when browser restricts direct Notification constructor
+        }
       }
+    } catch {
+      // Ignore permission access issues
     }
   }
 
@@ -53,9 +78,13 @@ class NotificationService {
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     
-    // Also try browser push
-    if (this.hasPermission()) {
-      this.sendPush(title, { body: message });
+    // Safely attempt push notification
+    try {
+      if (this.hasPermission()) {
+        this.sendPush(title, { body: message });
+      }
+    } catch {
+      // Continue without push
     }
 
     return {

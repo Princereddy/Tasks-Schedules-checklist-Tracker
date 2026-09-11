@@ -25,7 +25,6 @@ interface AuthModalProps {
   syncStatus?: SyncStatus;
   lastSyncedAt: Date | null;
   customDisplayName?: string | null;
-  onGmailLogin?: (email: string, displayName?: string) => Promise<void>;
   onLogin: () => Promise<void>;
   onLogout: () => Promise<void>;
   onManualSync: () => Promise<void>;
@@ -41,7 +40,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   syncStatus = 'idle',
   lastSyncedAt,
   customDisplayName,
-  onGmailLogin,
   onLogin,
   onLogout,
   onManualSync,
@@ -367,7 +365,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   Google Account Authentication
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mx-auto">
-                  Sign in with your Gmail account to open your isolated Cloud Firestore workspace. Direct access has been retired.
+                  Sign in with your Google account to open your private Cloud Firestore workspace.
                 </p>
               </div>
 

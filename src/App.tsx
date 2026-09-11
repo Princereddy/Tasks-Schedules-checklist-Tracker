@@ -362,21 +362,10 @@ export default function App() {
   };
 
   // Auth Operations
-  const handleGmailLogin = async (email: string, displayName?: string) => {
-    setIsSyncing(true);
-    try {
-      const profile = await loginWithGmailAccount(email, displayName);
-      setCurrentUser(profile);
-      soundFx.playSuccessChime();
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const handleLogin = () => {
-    setIsSyncing(true);
     return loginWithGoogle()
       .then((profile) => {
+        setIsSyncing(true);
         setCurrentUser(profile);
         soundFx.playSuccessChime();
       })
@@ -754,7 +743,6 @@ export default function App() {
     return (
       <FullPageLogin
         onGoogleOAuthLogin={handleLogin}
-        onGmailDirectLogin={handleGmailLogin}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);
@@ -939,7 +927,6 @@ export default function App() {
         syncStatus={syncStatus}
         lastSyncedAt={lastSyncedAt}
         onLogin={handleLogin}
-        onGmailLogin={handleGmailLogin}
         onLogout={handleLogout}
         onManualSync={handleManualSync}
         onUpdateDisplayName={handleUpdateDisplayName}

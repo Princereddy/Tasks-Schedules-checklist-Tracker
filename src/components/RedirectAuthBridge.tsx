@@ -85,9 +85,9 @@ export const RedirectAuthBridge: React.FC<RedirectAuthBridgeProps> = () => {
           return;
         }
 
-        // Step 3: Not signed in and no redirect result yet -> initiate Google OAuth redirect
-        setStatus('redirecting');
-        await loginWithGoogleRedirect();
+        // Step 3: Not signed in and no redirect result -> return to root workspace
+        window.location.replace('/');
+        return;
       } catch (err: any) {
         console.error('Redirect auth bridge error:', err);
         if (isMounted) {
