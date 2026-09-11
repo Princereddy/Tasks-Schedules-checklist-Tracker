@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ShieldCheck, 
   Sparkles, 
@@ -22,6 +22,7 @@ import { ThemeMode } from '../types';
 interface FullPageLoginProps {
   onGoogleOAuthLogin: () => Promise<void>;
   onGoogleRedirectLogin?: () => Promise<void>;
+  onGoogleIdTokenLogin?: (idToken: string) => Promise<any>;
   themeMode: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
 }
@@ -29,6 +30,7 @@ interface FullPageLoginProps {
 export const FullPageLogin: React.FC<FullPageLoginProps> = ({
   onGoogleOAuthLogin,
   onGoogleRedirectLogin,
+  onGoogleIdTokenLogin,
   themeMode,
   onThemeChange,
 }) => {
@@ -38,9 +40,54 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
   const [unauthorizedDomainNotice, setUnauthorizedDomainNotice] = useState<boolean>(false);
   const [copiedHost, setCopiedHost] = useState<boolean>(false);
   const [copiedVercel, setCopiedVercel] = useState<boolean>(false);
+  const gsiContainerRef = useRef<HTMLDivElement>(null);
 
   const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+
+  // Initialize Google Identity Services if available on window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const setupGsi = () => {
+      if ((window as any).google?.accounts?.id && gsiContainerRef.current) {
+        try {
+          (window as any).google.accounts.id.initialize({
+            client_id: "155416083680-1kmq93i6hc43l86917jd5nrj0v3n85fn.apps.googleusercontent.com",
+            callback: async (response: any) => {
+              if (response?.credential && onGoogleIdTokenLogin) {
+                setIsOAuthSubmitting(true);
+                setErrorMessage(null);
+                try {
+                  await onGoogleIdTokenLogin(response.credential);
+                } catch (err: any) {
+                  setErrorMessage(err?.message || 'Google verification could not be completed.');
+                } finally {
+                  setIsOAuthSubmitting(false);
+                }
+              }
+            },
+            auto_select: false,
+          });
+
+          gsiContainerRef.current.innerHTML = '';
+          (window as any).google.accounts.id.renderButton(gsiContainerRef.current, {
+            theme: themeMode === 'dark' ? 'filled_black' : 'outline',
+            size: 'large',
+            width: gsiContainerRef.current.clientWidth ? Math.min(360, gsiContainerRef.current.clientWidth) : 320,
+            text: 'continue_with',
+            shape: 'rectangular',
+          });
+        } catch (e) {
+          console.warn('GSI render notice:', e);
+        }
+      }
+    };
+
+    setupGsi();
+    const t = setTimeout(setupGsi, 800);
+    return () => clearTimeout(t);
+  }, [themeMode, onGoogleIdTokenLogin]);
 
   const handleOAuthClick = async () => {
     setErrorMessage(null);
@@ -392,6 +439,12 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                     </>
                   )}
                 </button>
+
+                {/* Official Google Identity Services Auto Button Mount */}
+                <div 
+                  ref={gsiContainerRef} 
+                  className="w-full flex items-center justify-center overflow-hidden empty:hidden py-0.5" 
+                />
 
                 {/* Direct Google Redirect button for blocked popups or mobile */}
                 {onGoogleRedirectLogin && (

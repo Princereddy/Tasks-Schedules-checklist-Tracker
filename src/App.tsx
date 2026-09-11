@@ -57,6 +57,7 @@ import {
   auth,
   loginWithGoogle,
   loginWithGoogleRedirect,
+  loginWithGoogleIdToken,
   loginWithGmailAccount,
   logoutUser,
   onAppAuthStateChanged,
@@ -98,6 +99,7 @@ export default function App() {
 
   // Firebase Authentication & Cloud Sync state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUserProfile());
+  const [isAuthInitializing, setIsAuthInitializing] = useState<boolean>(() => !getStoredUserProfile());
   const [customDisplayName, setCustomDisplayName] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -194,6 +196,7 @@ export default function App() {
         setTasks(loadTasksFromStorage());
         setProgress(loadProgressFromStorage());
       }
+      setIsAuthInitializing(false);
     });
 
     return () => {
@@ -204,11 +207,19 @@ export default function App() {
   }, []);
 
   // Check redirect result on app initialization for standalone windows
-
   useEffect(() => {
-    checkRedirectResult().catch((err) => {
-      console.warn('Silent checkRedirectResult:', err);
-    });
+    checkRedirectResult()
+      .then((user) => {
+        if (user) {
+          setCurrentUser(user);
+        }
+      })
+      .catch((err) => {
+        console.warn('Silent checkRedirectResult:', err);
+      })
+      .finally(() => {
+        setIsAuthInitializing(false);
+      });
   }, []);
 
   // Listen for auth success postMessage from standalone auth window
@@ -710,7 +721,47 @@ export default function App() {
     soundFx.playSuccessChime();
   };
 
+  const handleIdTokenLogin = async (idToken: string) => {
+    setIsSyncing(true);
+    try {
+      const user = await loginWithGoogleIdToken(idToken);
+      setCurrentUser(user);
+      soundFx.playSuccessChime();
+      const notif = notificationService.createNotification(
+        '☁️ Google Account Connected',
+        `Welcome, ${user.displayName || user.email}! Workspace connected with Cloud Firestore.`,
+        'info'
+      );
+      setNotifications((prev) => [notif, ...prev]);
+    } catch (err: any) {
+      console.error('ID Token Login error:', err);
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
+
+  // While restoring session from Google OAuth redirect or Firebase Auth
+  if (isAuthInitializing && !currentUser) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-900 text-white gap-4 p-4 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 animate-pulse">
+          <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+          </svg>
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-lg font-bold tracking-tight">PLANVEXA Workspace</h2>
+          <div className="flex items-center justify-center gap-2 text-sm text-slate-400 font-medium">
+            <div className="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+            <span>Verifying Google account &amp; syncing workspace...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Full-Page Auth Wall: users must log in with Google to access their workspace
   if (!currentUser) {
@@ -718,6 +769,7 @@ export default function App() {
       <FullPageLogin
         onGoogleOAuthLogin={handleLogin}
         onGoogleRedirectLogin={loginWithGoogleRedirect}
+        onGoogleIdTokenLogin={handleIdTokenLogin}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);

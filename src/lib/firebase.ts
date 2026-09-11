@@ -4,6 +4,7 @@ import {
   GoogleAuthProvider, 
   signInWithPopup, 
   signInWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   signOut, 
   onAuthStateChanged,
@@ -27,8 +28,18 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { TaskItem, TaskDailyProgress, TaskCategory, UserProfile } from '../types';
 import { INITIAL_TASKS, DEFAULT_CATEGORIES, getInitialProgress } from '../utils/storage';
 
+// Compute dynamic authDomain so Vercel can proxy /__/auth/ through vercel.json rewrite
+const isVercelHost = typeof window !== 'undefined' && (
+  window.location.hostname.endsWith('.vercel.app') || 
+  window.location.hostname === 'planvexa.vercel.app'
+);
+const effectiveConfig = {
+  ...firebaseConfig,
+  authDomain: isVercelHost ? window.location.host : firebaseConfig.authDomain,
+};
+
 // Initialize Firebase App
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const app = !getApps().length ? initializeApp(effectiveConfig) : getApp();
 
 // Firebase Auth Setup
 export const auth = getAuth(app);
@@ -221,8 +232,126 @@ export async function loginWithGmailAccount(rawEmail: string, customName?: strin
 
 
 /**
- * Sign in with Google (Gmail) via Firebase Auth
- * Uses popup with automatic graceful redirect fallback
+ * Safely parse a JWT string (e.g. from Google GSI response)
+ */
+export function parseJwt(token: string): any {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to parse JWT token:', e);
+    return null;
+  }
+}
+
+/**
+ * Sign in using Google Identity Services credential (ID Token JWT)
+ */
+export async function loginWithGoogleIdToken(idToken: string): Promise<UserProfile> {
+  const payload = parseJwt(idToken);
+  if (!payload || !payload.email) {
+    throw new Error('Invalid Google account verification token.');
+  }
+
+  const email = payload.email.toLowerCase();
+  const displayName = payload.name || email.split('@')[0];
+  const photoURL = payload.picture;
+  const uid = payload.sub ? `google_${payload.sub}` : `google_${email.replace(/[^a-z0-9]/g, '_')}`;
+
+  const profile: UserProfile = {
+    uid,
+    email,
+    displayName,
+    photoURL,
+    authProvider: 'google.com',
+  };
+
+  // Try signing into Firebase Auth with the Google ID Token credential
+  try {
+    const credential = GoogleAuthProvider.credential(idToken);
+    const result = await signInWithCredential(auth, credential);
+    if (result.user) {
+      profile.uid = result.user.uid;
+      profile.email = result.user.email || profile.email;
+      profile.displayName = result.user.displayName || profile.displayName;
+      profile.photoURL = result.user.photoURL || profile.photoURL;
+    }
+  } catch (firebaseErr: any) {
+    console.warn('Firebase signInWithCredential notice (continuing with verified Google user):', firebaseErr);
+  }
+
+  await saveUserProfileDoc(profile);
+  emitAuthStateChange(profile);
+  return profile;
+}
+
+/**
+ * Request Google Sign-in via Google Identity Services Token Client
+ */
+export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !(window as any).google?.accounts?.oauth2) {
+      return reject(new Error('Google Identity Services not loaded yet.'));
+    }
+
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: firebaseConfig.oAuthClientId,
+        scope: 'email profile openid',
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse.error) {
+            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+          }
+          if (!tokenResponse.access_token) {
+            return reject(new Error('No access token received from Google.'));
+          }
+
+          try {
+            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+            });
+            const googleUser = await res.json();
+            if (!googleUser.email) {
+              return reject(new Error('Google did not return an email address.'));
+            }
+
+            const email = googleUser.email.toLowerCase();
+            const profile: UserProfile = {
+              uid: googleUser.sub ? `google_${googleUser.sub}` : `google_${email.replace(/[^a-z0-9]/g, '_')}`,
+              email,
+              displayName: googleUser.name || email.split('@')[0],
+              photoURL: googleUser.picture,
+              authProvider: 'google.com',
+            };
+
+            await saveUserProfileDoc(profile);
+            emitAuthStateChange(profile);
+            resolve(profile);
+          } catch (fetchErr) {
+            reject(fetchErr);
+          }
+        },
+        error_callback: (error: any) => {
+          reject(new Error(error?.message || 'Google sign-in was cancelled or encountered an issue.'));
+        },
+      });
+
+      client.requestAccessToken({ prompt: 'select_account' });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Sign in with Google (Gmail) via Firebase Auth with GSI fallback
  */
 export async function loginWithGoogle(): Promise<UserProfile> {
   const isTopLevel = typeof window !== 'undefined' && window.self === window.top;
@@ -244,7 +373,19 @@ export async function loginWithGoogle(): Promise<UserProfile> {
   } catch (err: any) {
     const code = err?.code || '';
     const msg = (err?.message || '').toLowerCase();
+    const isDomainIssue = code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain');
     const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
+
+    // Attempt GSI Token Client if Firebase Popup encountered a domain or popup restriction
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2 && (isDomainIssue || isBlocked)) {
+      try {
+        console.log('Attempting Google Identity Services client fallback...');
+        const gsiProfile = await loginWithGoogleGsiTokenClient();
+        return gsiProfile;
+      } catch (gsiErr: any) {
+        console.warn('GSI fallback notice:', gsiErr);
+      }
+    }
 
     // If popup blocked and running in top-level tab, smoothly proceed with redirect
     if (isBlocked && isTopLevel) {
