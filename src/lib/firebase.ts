@@ -28,18 +28,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { TaskItem, TaskDailyProgress, TaskCategory, UserProfile } from '../types';
 import { INITIAL_TASKS, DEFAULT_CATEGORIES, getInitialProgress } from '../utils/storage';
 
-// Compute dynamic authDomain so Vercel can proxy /__/auth/ through vercel.json rewrite
-const isVercelHost = typeof window !== 'undefined' && (
-  window.location.hostname.endsWith('.vercel.app') || 
-  window.location.hostname === 'planvexa.vercel.app'
-);
-const effectiveConfig = {
-  ...firebaseConfig,
-  authDomain: isVercelHost ? window.location.host : firebaseConfig.authDomain,
-};
-
 // Initialize Firebase App
-const app = !getApps().length ? initializeApp(effectiveConfig) : getApp();
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 // Firebase Auth Setup
 export const auth = getAuth(app);
