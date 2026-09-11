@@ -15,15 +15,19 @@ import {
   Bell,
   Calendar,
   CheckCheck,
-  Download
+  Download,
+  User as UserIcon
 } from 'lucide-react';
-import { TaskCategory, TaskItem } from '../types';
+import { TaskCategory, TaskItem, UserProfile } from '../types';
 import { WEEKDAY_LABELS, formatTime12h } from '../utils/dates';
 import { soundFx } from '../utils/audio';
 
 interface ManageTasksViewProps {
   tasks: TaskItem[];
   categories: TaskCategory[];
+  currentUser?: UserProfile | null;
+  customDisplayName?: string | null;
+  onOpenAuthModal?: () => void;
   onOpenNewTaskModal: () => void;
   onOpenExport?: () => void;
   onEditTask: (task: TaskItem) => void;
@@ -39,6 +43,9 @@ interface ManageTasksViewProps {
 export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
   tasks,
   categories,
+  currentUser,
+  customDisplayName,
+  onOpenAuthModal,
   onOpenNewTaskModal,
   onOpenExport,
   onEditTask,
@@ -121,6 +128,53 @@ export const ManageTasksView: React.FC<ManageTasksViewProps> = ({
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs p-5 sm:p-6 space-y-5 transition-colors duration-200">
+      
+      {/* Account & Profile Card */}
+      {currentUser && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-slate-50 dark:from-slate-800/80 dark:via-indigo-950/20 dark:to-slate-800/60 border border-blue-100/80 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3 min-w-0">
+            {currentUser.photoURL ? (
+              <img
+                src={currentUser.photoURL}
+                alt={customDisplayName || currentUser.displayName || 'User'}
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/30 flex-shrink-0"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-2xs flex-shrink-0">
+                {((customDisplayName || currentUser.displayName || currentUser.email || 'U'))[0].toUpperCase()}
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                  {customDisplayName || currentUser.displayName || 'My Account'}
+                </span>
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80">
+                  Cloud Active
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                {currentUser.email}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap flex-shrink-0">
+            {onOpenAuthModal && (
+              <button
+                id="btn-manage-open-profile"
+                type="button"
+                onClick={onOpenAuthModal}
+                className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <UserIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Profile &amp; Cloud Status</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* Header and Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">

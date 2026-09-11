@@ -1,5 +1,4 @@
 import { TaskCategory, TaskItem, TaskDailyProgress, AppNotification } from '../types';
-import { formatDateKey } from './dates';
 
 export const DEFAULT_CATEGORIES: TaskCategory[] = [
   {
@@ -44,152 +43,11 @@ export const DEFAULT_CATEGORIES: TaskCategory[] = [
   },
 ];
 
-export const INITIAL_TASKS: TaskItem[] = [
-  {
-    id: 'task_1',
-    title: 'Daily Standup & Priority Sync',
-    description: 'Review project roadmap, resolve blockers, and align team deliverables in MS Teams.',
-    categoryId: 'cat_work',
-    priority: 'high',
-    activeWeekdays: [1, 2, 3, 4, 5], // Mon to Fri
-    defaultStartTime: '09:00',
-    defaultEndTime: '09:30',
-    reminderEnabled: true,
-    reminderMinutesBefore: 10,
-    subtasks: [
-      { id: 'sub_1_1', title: 'Review unread emails & urgent tickets', completed: true },
-      { id: 'sub_1_2', title: 'Post daily blockers in status channel', completed: true },
-      { id: 'sub_1_3', title: 'Update project sprint board', completed: false },
-    ],
-    colorTag: '#0078D4',
-    createdAt: '2026-08-01',
-  },
-  {
-    id: 'task_2',
-    title: 'Deep Work: Core Architecture Sprint',
-    description: 'Uninterrupted flow block for high-impact coding and technical specs.',
-    categoryId: 'cat_tech',
-    priority: 'high',
-    activeWeekdays: [1, 2, 3, 4, 5], // Mon to Fri
-    defaultStartTime: '10:00',
-    defaultEndTime: '12:30',
-    reminderEnabled: true,
-    reminderMinutesBefore: 5,
-    subtasks: [
-      { id: 'sub_2_1', title: 'Profile database query speeds', completed: false },
-      { id: 'sub_2_2', title: 'Implement reactive UI state sync', completed: false },
-    ],
-    colorTag: '#5C2D91',
-    createdAt: '2026-08-01',
-  },
-  {
-    id: 'task_3',
-    title: 'Hydration & Posture Reset (Habit)',
-    description: 'Drink 500ml water and complete 5-minute thoracic stretch routine.',
-    categoryId: 'cat_health',
-    priority: 'medium',
-    activeWeekdays: [0, 1, 2, 3, 4, 5, 6], // All 7 days
-    defaultStartTime: '12:30',
-    defaultEndTime: '12:45',
-    reminderEnabled: true,
-    reminderMinutesBefore: 0,
-    subtasks: [
-      { id: 'sub_3_1', title: 'Drink water (500ml)', completed: true },
-      { id: 'sub_3_2', title: 'Perform neck & wrist stretches', completed: true },
-    ],
-    colorTag: '#107C41',
-    createdAt: '2026-08-01',
-  },
-  {
-    id: 'task_4',
-    title: 'Client Proposals & Pipeline Review',
-    description: 'Verify quarterly revenue targets, follow up on key proposals, and update CRM.',
-    categoryId: 'cat_growth',
-    priority: 'high',
-    activeWeekdays: [1, 3, 5], // Mon, Wed, Fri
-    defaultStartTime: '14:00',
-    defaultEndTime: '15:15',
-    reminderEnabled: false,
-    reminderMinutesBefore: 15,
-    subtasks: [
-      { id: 'sub_4_1', title: 'Send revised contract to Enterprise partner', completed: false },
-      { id: 'sub_4_2', title: 'Schedule demo for prospective accounts', completed: false },
-    ],
-    colorTag: '#008272',
-    createdAt: '2026-08-05',
-  },
-  {
-    id: 'task_5',
-    title: 'Cardio & Strength Training Session',
-    description: '45-minute structured workout: 20 min interval cardio + 25 min strength.',
-    categoryId: 'cat_health',
-    priority: 'medium',
-    activeWeekdays: [1, 2, 4, 6], // Mon, Tue, Thu, Sat
-    defaultStartTime: '17:30',
-    defaultEndTime: '18:30',
-    reminderEnabled: true,
-    reminderMinutesBefore: 15,
-    subtasks: [
-      { id: 'sub_5_1', title: 'Warm-up jog (10 mins)', completed: false },
-      { id: 'sub_5_2', title: 'Core circuit & recovery', completed: false },
-    ],
-    colorTag: '#107C41',
-    createdAt: '2026-08-10',
-  },
-  {
-    id: 'task_6',
-    title: 'Evening Technical Reading & Skill Mastery',
-    description: '30 minutes reading research papers, systems design books, or industry whitepapers.',
-    categoryId: 'cat_study',
-    priority: 'low',
-    activeWeekdays: [0, 1, 2, 3, 4, 5, 6], // All 7 days
-    defaultStartTime: '21:00',
-    defaultEndTime: '21:45',
-    reminderEnabled: true,
-    reminderMinutesBefore: 10,
-    subtasks: [
-      { id: 'sub_6_1', title: 'Read 20 pages', completed: false },
-      { id: 'sub_6_2', title: 'Write 3 key bullet takeaways in notebook', completed: false },
-    ],
-    colorTag: '#D83B01',
-    createdAt: '2026-08-12',
-  },
-];
+// No demo data - all new users start completely fresh with 0 tasks and 0 records
+export const INITIAL_TASKS: TaskItem[] = [];
 
-// Generate initial sample completion progress for the current month so charts are instantly populated!
 export function getInitialProgress(): Record<string, TaskDailyProgress> {
-  const progress: Record<string, TaskDailyProgress> = {};
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const todayDay = now.getDate();
-
-  // Populate last 14 days with realistic completions
-  for (let day = Math.max(1, todayDay - 14); day <= todayDay; day++) {
-    const dateKey = formatDateKey(year, month, day);
-    const dateObj = new Date(year, month, day);
-    const dayOfWeek = dateObj.getDay();
-
-    INITIAL_TASKS.forEach((task, idx) => {
-      // Check if task is active on this day
-      if (task.activeWeekdays.includes(dayOfWeek)) {
-        const key = `${task.id}_${dateKey}`;
-        // Give higher completion for past days to demonstrate streak
-        const isPast = day < todayDay;
-        const isCompleted = isPast ? (idx !== 4 || day % 3 !== 0) : (idx === 0 || idx === 2); // on today, first 2 are done
-
-        progress[key] = {
-          taskId: task.id,
-          dateKey,
-          status: isCompleted ? 'completed' : (day === todayDay && idx === 1 ? 'in-progress' : 'pending'),
-          completedAt: isCompleted ? `${dateKey}T${task.defaultEndTime}:00` : undefined,
-          completedSubtasks: isCompleted ? (task.subtasks?.map(s => s.id) || []) : [],
-        };
-      }
-    });
-  }
-
-  return progress;
+  return {};
 }
 
 const STORAGE_KEY_TASKS = 'msoffice_tasktracker_tasks_v1';
@@ -198,7 +56,7 @@ const STORAGE_KEY_CATEGORIES = 'msoffice_tasktracker_cats_v1';
 const STORAGE_KEY_NOTIFS = 'msoffice_tasktracker_notifs_v1';
 
 export function loadTasksFromStorage(): TaskItem[] {
-  if (typeof window === 'undefined') return INITIAL_TASKS;
+  if (typeof window === 'undefined') return [];
   try {
     const data = localStorage.getItem(STORAGE_KEY_TASKS);
     if (data) {
@@ -207,7 +65,7 @@ export function loadTasksFromStorage(): TaskItem[] {
   } catch (e) {
     console.error('Failed to load tasks from localStorage', e);
   }
-  return INITIAL_TASKS;
+  return [];
 }
 
 export function saveTasksToStorage(tasks: TaskItem[]) {
@@ -220,7 +78,7 @@ export function saveTasksToStorage(tasks: TaskItem[]) {
 }
 
 export function loadProgressFromStorage(): Record<string, TaskDailyProgress> {
-  if (typeof window === 'undefined') return getInitialProgress();
+  if (typeof window === 'undefined') return {};
   try {
     const data = localStorage.getItem(STORAGE_KEY_PROGRESS);
     if (data) {
@@ -229,7 +87,7 @@ export function loadProgressFromStorage(): Record<string, TaskDailyProgress> {
   } catch (e) {
     console.error('Failed to load progress', e);
   }
-  return getInitialProgress();
+  return {};
 }
 
 export function saveProgressToStorage(progress: Record<string, TaskDailyProgress>) {
@@ -273,16 +131,7 @@ export function loadNotificationsFromStorage(): AppNotification[] {
   } catch (e) {
     console.error('Failed to load notifications', e);
   }
-  return [
-    {
-      id: 'notif_welcome',
-      title: 'PLANVEXA Workspace Activated',
-      message: 'Plan your year, configure weekday schedules & timings, track daily habits, and review real-time analytics.',
-      time: '09:00',
-      type: 'info',
-      read: false,
-    },
-  ];
+  return [];
 }
 
 export function saveNotificationsToStorage(notifications: AppNotification[]) {
@@ -291,5 +140,20 @@ export function saveNotificationsToStorage(notifications: AppNotification[]) {
     localStorage.setItem(STORAGE_KEY_NOTIFS, JSON.stringify(notifications));
   } catch (e) {
     console.error('Failed to save notifications', e);
+  }
+}
+
+export function clearAllLocalStorage(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEY_TASKS);
+    localStorage.removeItem(STORAGE_KEY_PROGRESS);
+    localStorage.removeItem(STORAGE_KEY_NOTIFS);
+    localStorage.removeItem('PLANVEXA_USER_PROFILE');
+    localStorage.removeItem('PLANVEXA_DISPLAY_NAME');
+    localStorage.removeItem('planvexa_user_profile_v1');
+    sessionStorage.clear();
+  } catch (e) {
+    console.error('Failed to clear localStorage', e);
   }
 }

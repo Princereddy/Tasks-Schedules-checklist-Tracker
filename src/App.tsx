@@ -17,6 +17,7 @@ import { BottomNavBar } from './components/BottomNavBar';
 import { AuthModal } from './components/AuthModal';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
 import { RedirectAuthBridge } from './components/RedirectAuthBridge';
+import { FullPageLogin } from './components/FullPageLogin';
 
 import { 
   TaskItem, 
@@ -36,7 +37,8 @@ import {
   saveProgressToStorage, 
   loadCategoriesFromStorage, 
   loadNotificationsFromStorage, 
-  saveNotificationsToStorage 
+  saveNotificationsToStorage,
+  clearAllLocalStorage
 } from './utils/storage';
 
 import { 
@@ -53,7 +55,6 @@ import { getStoredTheme, applyTheme } from './utils/theme';
 
 import {
   auth,
-  loginWithSimpleGmail,
   loginWithGoogle,
   logoutUser,
   onAppAuthStateChanged,
@@ -226,12 +227,6 @@ export default function App() {
     return () => window.removeEventListener('message', handleAuthMessage);
   }, []);
 
-  // Auto-close auth modal as soon as currentUser is detected
-  useEffect(() => {
-    if (currentUser && isAuthModalOpen) {
-      setIsAuthModalOpen(false);
-    }
-  }, [currentUser, isAuthModalOpen]);
 
   // Check for ?action=signin query parameter (e.g. from popup-blocked new-tab fallback)
   useEffect(() => {
@@ -349,10 +344,10 @@ export default function App() {
   };
 
   // Auth Operations
-  const handleSimpleLogin = async (email: string, displayName?: string) => {
+  const handleLogin = async () => {
     setIsSyncing(true);
     try {
-      const profile = await loginWithSimpleGmail(email, displayName);
+      const profile = await loginWithGoogle();
       setCurrentUser(profile);
       soundFx.playSuccessChime();
     } finally {
@@ -360,12 +355,25 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
-    await loginWithGoogle();
-  };
-
   const handleLogout = async () => {
-    await logoutUser();
+    // 1. Immediately close modals & play audio feedback
+    setIsAuthModalOpen(false);
+    soundFx.playClickBeep();
+
+    // 2. Clear local storage & reset memory states immediately to show login screen
+    clearAllLocalStorage();
+    setCurrentUser(null);
+    setCustomDisplayName(null);
+    setTasks([]);
+    setProgress({});
+    setNotifications([]);
+
+    // 3. Cleanly terminate Firebase Auth and simple Gmail session
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.warn('Logout notice:', err);
+    }
   };
 
   // Generalized Auto-Sync Trigger to keep Firestore continuously updated on every single user change
@@ -691,6 +699,20 @@ export default function App() {
 
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
+  // Full-Page Auth Wall: users must log in with Gmail first before accessing the dashboard
+  if (!currentUser) {
+    return (
+      <FullPageLogin
+        onGoogleOAuthLogin={handleLogin}
+        themeMode={themeMode}
+        onThemeChange={(mode) => {
+          setThemeMode(mode);
+          applyTheme(mode);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-100/75 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col antialiased selection:bg-blue-100 dark:selection:bg-blue-900/40 selection:text-blue-900 dark:selection:text-blue-200 pb-20 md:pb-6 transition-colors duration-200">
       
@@ -810,6 +832,9 @@ export default function App() {
           <ManageTasksView
             tasks={tasks}
             categories={categories}
+            currentUser={currentUser}
+            customDisplayName={customDisplayName}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
             onOpenNewTaskModal={() => {
               setEditingTask(null);
               setIsTaskModalOpen(true);
@@ -838,6 +863,8 @@ export default function App() {
           setEditingTask(null);
           setIsTaskModalOpen(true);
         }}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        currentUser={currentUser}
       />
 
       {/* Modals & Slide-over Drawers */}
@@ -860,7 +887,6 @@ export default function App() {
         isSyncing={isSyncing}
         syncStatus={syncStatus}
         lastSyncedAt={lastSyncedAt}
-        onSimpleLogin={handleSimpleLogin}
         onLogin={handleLogin}
         onLogout={handleLogout}
         onManualSync={handleManualSync}

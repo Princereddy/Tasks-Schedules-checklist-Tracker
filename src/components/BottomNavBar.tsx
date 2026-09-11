@@ -6,17 +6,22 @@ import {
   Settings2,
   Plus
 } from 'lucide-react';
+import { UserProfile } from '../types';
 
 interface BottomNavBarProps {
   activeTab: 'dashboard' | 'checklist' | 'matrix' | 'manage';
   onTabChange: (tab: 'dashboard' | 'checklist' | 'matrix' | 'manage') => void;
   onOpenNewTaskModal: () => void;
+  onOpenAuthModal?: () => void;
+  currentUser?: UserProfile | null;
 }
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   activeTab,
   onTabChange,
   onOpenNewTaskModal,
+  onOpenAuthModal,
+  currentUser,
 }) => {
   return (
     <nav 
@@ -98,6 +103,33 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           </div>
           <span className="text-[10px] tracking-tight mt-0.5">Manage</span>
         </button>
+
+        {/* Mobile Profile Trigger */}
+        {onOpenAuthModal && (
+          <button
+            id="mobile-tab-profile"
+            type="button"
+            onClick={onOpenAuthModal}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 font-medium transition-all"
+          >
+            <div className="p-1 rounded-lg transition-colors relative">
+              {currentUser?.photoURL ? (
+                <img
+                  src={currentUser.photoURL}
+                  alt="Profile"
+                  className="w-5 h-5 rounded-full object-cover ring-1 ring-emerald-500/50"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[9px]">
+                  {(currentUser?.displayName || currentUser?.email || 'P')[0].toUpperCase()}
+                </div>
+              )}
+              <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-white dark:ring-slate-900" />
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5">Profile</span>
+          </button>
+        )}
       </div>
     </nav>
   );

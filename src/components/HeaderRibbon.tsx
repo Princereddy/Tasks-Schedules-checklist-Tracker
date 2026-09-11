@@ -19,7 +19,8 @@ import {
   RefreshCw,
   CheckCircle2,
   Zap,
-  ExternalLink
+  ExternalLink,
+  LogOut
 } from 'lucide-react';
 import { AVAILABLE_YEARS, MONTH_NAMES } from '../utils/dates';
 import { ThemeMode, SyncStatus, UserProfile } from '../types';
@@ -303,52 +304,57 @@ export const HeaderRibbon: React.FC<HeaderRibbonProps> = ({
 
             {/* Google / Gmail Auth & Cloud Status */}
             {currentUser ? (
-              <button
-                id="btn-header-profile"
-                type="button"
-                onClick={onOpenAuthModal}
-                className="flex items-center gap-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-emerald-50/70 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 transition-all shadow-2xs cursor-pointer flex-shrink-0"
-                title={`Signed in with ${currentUser.email} • Firebase Cloud Active • Click to change name or view auto-sync`}
-              >
-                <div className="relative flex-shrink-0">
-                  {currentUser.photoURL ? (
-                    <img
-                      src={currentUser.photoURL}
-                      alt={customDisplayName || currentUser.displayName || 'User'}
-                      className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-500/50"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">
-                      {((customDisplayName || currentUser.displayName || currentUser.email || 'U'))[0].toUpperCase()}
-                    </div>
-                  )}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${syncStatus === 'saving' || isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'} ring-1 ring-white dark:ring-slate-900`} />
-                </div>
-                <div className="hidden lg:flex flex-col items-start leading-none text-left">
-                  <span className="text-[11px] font-bold text-slate-900 dark:text-white max-w-[100px] truncate">
-                    {(customDisplayName || currentUser.displayName)?.split(' ')[0] || 'My Account'}
-                  </span>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    {syncStatus === 'saving' || isSyncing ? (
-                      <span className="text-[9px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-0.5">
-                        <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                        <span>Saving...</span>
-                      </span>
-                    ) : syncStatus === 'synced' ? (
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5">
-                        <CheckCircle2 className="w-2.5 h-2.5" />
-                        <span>Synced</span>
-                      </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  id="btn-header-profile"
+                  type="button"
+                  onClick={onOpenAuthModal}
+                  className="flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 bg-emerald-50/70 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 transition-all shadow-2xs cursor-pointer flex-shrink-0 active:scale-95"
+                  title={`Signed in with ${currentUser.email} • Click to open Profile & Cloud Firestore`}
+                >
+                  <div className="relative flex-shrink-0">
+                    {currentUser.photoURL ? (
+                      <img
+                        src={currentUser.photoURL}
+                        alt={customDisplayName || currentUser.displayName || 'User'}
+                        className="w-6 h-6 rounded-full object-cover ring-1 ring-emerald-500/50"
+                        referrerPolicy="no-referrer"
+                      />
                     ) : (
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
-                        <Cloud className="w-2.5 h-2.5" />
-                        <span>Auto-Sync</span>
-                      </span>
+                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-[10px]">
+                        {((customDisplayName || currentUser.displayName || currentUser.email || 'U'))[0].toUpperCase()}
+                      </div>
                     )}
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ${syncStatus === 'saving' || isSyncing ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'} ring-1 ring-white dark:ring-slate-900`} />
                   </div>
-                </div>
-              </button>
+                  <span className="text-[11px] font-bold text-slate-900 dark:text-white sm:hidden">
+                    Profile
+                  </span>
+                  <div className="hidden sm:flex flex-col items-start leading-none text-left">
+                    <span className="text-[11px] font-bold text-slate-900 dark:text-white max-w-[110px] truncate">
+                      {(customDisplayName || currentUser.displayName)?.split(' ')[0] || 'My Account'}
+                    </span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {syncStatus === 'saving' || isSyncing ? (
+                        <span className="text-[9px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-0.5">
+                          <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                          <span>Saving...</span>
+                        </span>
+                      ) : syncStatus === 'synced' ? (
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5">
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          <span>Synced</span>
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5">
+                          <Cloud className="w-2.5 h-2.5" />
+                          <span>Auto-Sync</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
             ) : (
               <button
                 id="btn-header-auth"

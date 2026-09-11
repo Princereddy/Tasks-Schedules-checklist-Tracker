@@ -51,18 +51,14 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
 
   const completionRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
 
-  // Compute Streak: Count consecutive days up to selected date that had active tasks & at least 80% or >=1 completion
+  // Compute Streak: Genuine calculation based on user's actual completed days (starts from 0)
   const calculateStreak = () => {
-    let currentStreak = 0;
-    let longestStreak = 0;
-    let tempStreak = 0;
+    if (tasks.length === 0) {
+      return { currentStreak: 0, longestStreak: 0 };
+    }
 
-    // Check last 60 days
-    const checkDate = new Date(selectedYear, selectedMonth, selectedDay);
-    
-    for (let i = 0; i < 60; i++) {
-      const d = new Date(checkDate);
-      d.setDate(d.getDate() - i);
+    // Helper: checks day completion status
+    const getDayCompletion = (d: Date) => {
       const y = d.getFullYear();
       const m = d.getMonth();
       const dayNum = d.getDate();
@@ -71,8 +67,7 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
 
       const activeOnDay = tasks.filter((t) => t.activeWeekdays.includes(dow));
       if (activeOnDay.length === 0) {
-        // Skip weekend or rest days without breaking streak if no tasks scheduled
-        continue;
+        return { hasScheduled: false, completedCount: 0, total: 0 };
       }
 
       let done = 0;
@@ -80,27 +75,89 @@ export const StatsCharts: React.FC<StatsChartsProps> = ({
         if (progress[`${t.id}_${dKey}`]?.status === 'completed') done++;
       });
 
-      const ratio = done / activeOnDay.length;
-      if (ratio >= 0.5 || done >= 1) {
-        if (i === 0 || currentStreak === i - (checkDate.getDay() === 0 ? 0 : 0)) {
-          currentStreak++;
-        }
-        tempStreak++;
-        if (tempStreak > longestStreak) longestStreak = tempStreak;
+      return {
+        hasScheduled: true,
+        completedCount: done,
+        total: activeOnDay.length,
+      };
+    };
+
+    const targetDate = new Date(selectedYear, selectedMonth, selectedDay);
+
+    // 1. Calculate current consecutive streak
+    let currentStreak = 0;
+    const todayCheck = getDayCompletion(targetDate);
+
+    let startOffset = 0;
+    if (todayCheck.hasScheduled && todayCheck.completedCount > 0) {
+      // Today has tasks and at least 1 is completed
+      currentStreak = 1;
+      startOffset = 1;
+    } else if (todayCheck.hasScheduled && todayCheck.completedCount === 0) {
+      // Today has tasks but 0 completed yet; check if yesterday was completed to keep streak alive
+      const yesterday = new Date(targetDate);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yCheck = getDayCompletion(yesterday);
+      if (yCheck.hasScheduled && yCheck.completedCount > 0) {
+        // Streak is ongoing from yesterday
+        startOffset = 1;
+      } else if (!yCheck.hasScheduled) {
+        // Yesterday was unscheduled/rest day, continue scanning backwards
+        startOffset = 1;
       } else {
-        if (i === 0) {
-          // If selected day is not yet completed, don't immediately drop streak if it's today
+        // Yesterday had tasks and was missed
+        currentStreak = 0;
+        startOffset = -1;
+      }
+    } else {
+      // Today had no scheduled tasks (e.g. weekend), check backwards
+      startOffset = 1;
+    }
+
+    if (startOffset >= 0) {
+      for (let i = startOffset; i < 365; i++) {
+        const d = new Date(targetDate);
+        d.setDate(d.getDate() - i);
+        const dayCheck = getDayCompletion(d);
+
+        if (!dayCheck.hasScheduled) {
+          // Rest or unscheduled day does not break active streak
           continue;
         }
-        tempStreak = 0;
+
+        if (dayCheck.completedCount > 0) {
+          currentStreak++;
+        } else {
+          // Scheduled day had 0 completed tasks; streak ends
+          break;
+        }
       }
     }
 
-    // Ensure realistic baseline if user has past data
-    const safeCurrent = Math.max(currentStreak, completedToday > 0 ? 5 : 4);
-    const safeLongest = Math.max(longestStreak, safeCurrent, 14);
+    // 2. Calculate Longest Streak over the past year
+    let longestStreak = currentStreak;
+    let runningStreak = 0;
 
-    return { currentStreak: safeCurrent, longestStreak: safeLongest };
+    for (let i = 365; i >= 0; i--) {
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() - i);
+      const dayCheck = getDayCompletion(d);
+
+      if (!dayCheck.hasScheduled) {
+        continue;
+      }
+
+      if (dayCheck.completedCount > 0) {
+        runningStreak++;
+        if (runningStreak > longestStreak) {
+          longestStreak = runningStreak;
+        }
+      } else {
+        runningStreak = 0;
+      }
+    }
+
+    return { currentStreak, longestStreak };
   };
 
   const streakStats = calculateStreak();

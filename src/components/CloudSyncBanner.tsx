@@ -36,7 +36,7 @@ export const CloudSyncBanner: React.FC<CloudSyncBannerProps> = ({
               <span className="font-bold">Welcome, {effectiveName}!</span> All {tasksCount} tasks & streaks are safe in your personal Firestore database. Auto-sync active on every change.
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2.5 flex-shrink-0">
             {syncStatus === 'saving' || isSyncing ? (
               <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
                 <RefreshCw className="w-3 h-3 animate-spin" />
@@ -52,7 +52,7 @@ export const CloudSyncBanner: React.FC<CloudSyncBannerProps> = ({
               onClick={onOpenAuthModal}
               className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer flex items-center gap-0.5"
             >
-              <span>Change Name / Manage</span>
+              <span>Manage Profile</span>
               <ChevronRight className="w-3 h-3" />
             </button>
             <button

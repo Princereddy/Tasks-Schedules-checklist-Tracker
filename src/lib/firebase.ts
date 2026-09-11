@@ -121,14 +121,7 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
       await saveUserProfileDoc(profile);
       emitAuthStateChange(profile);
     } else {
-      // If Firebase Auth signed out, check if user has a simple Gmail session
-      const stored = getStoredUserProfile();
-      if (stored && stored.authProvider === 'gmail') {
-        // Keep simple Gmail session active
-        callback(stored);
-      } else {
-        emitAuthStateChange(null);
-      }
+      emitAuthStateChange(null);
     }
   });
 
@@ -176,46 +169,6 @@ export async function saveUserProfile(user: User): Promise<void> {
   }
 }
 
-/**
- * Simple Gmail Login (100% Reliable in EVERY browser, 0 popups, 0 redirects, 0 cookie restrictions)
- * Seamlessly stores all user tasks, habits, and progress in Cloud Firestore.
- */
-export async function loginWithSimpleGmail(rawEmail: string, customName?: string): Promise<UserProfile> {
-  const cleanEmail = rawEmail.trim().toLowerCase();
-  if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-    throw new Error('Please enter a valid Gmail or email address (e.g. you@gmail.com).');
-  }
-
-  // Generate deterministic UID based on email so user always gets their own cloud data back
-  const safeEmailKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
-  const uid = `gmail_${safeEmailKey}`.substring(0, 64);
-
-  // Compute friendly display name if not provided
-  let displayName = (customName || '').trim();
-  if (!displayName) {
-    const prefix = cleanEmail.split('@')[0].replace(/[._-]/g, ' ');
-    displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-  }
-
-  const photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=2563eb,0284c7,4f46e5`;
-
-  const profile: UserProfile = {
-    uid,
-    email: cleanEmail,
-    displayName,
-    photoURL,
-    authProvider: 'gmail',
-    lastLoginAt: new Date().toISOString(),
-  };
-
-  // 1. Persist user profile to Cloud Firestore
-  await saveUserProfileDoc(profile);
-
-  // 2. Persist locally and broadcast state change
-  emitAuthStateChange(profile);
-
-  return profile;
-}
 
 /**
  * Sign in with Google (Gmail) via Firebase Auth
@@ -227,6 +180,14 @@ export async function loginWithGoogle(): Promise<UserProfile> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    const userEmail = (user.email || '').toLowerCase();
+
+    // Enforce Gmail account requirement
+    if (userEmail && !userEmail.endsWith('@gmail.com') && !userEmail.endsWith('.google.com')) {
+      await signOut(auth);
+      throw new Error('Access is restricted to Gmail accounts (@gmail.com). Please select a Gmail account to proceed.');
+    }
+
     const profile: UserProfile = {
       uid: user.uid,
       email: user.email,
@@ -289,13 +250,31 @@ export async function checkRedirectResult(): Promise<UserProfile | null> {
  * Sign out user from both Firebase Auth and Simple Gmail session
  */
 export async function logoutUser(): Promise<void> {
+  // 1. Immediately reset memory cache and persistent storage
+  cachedUserProfile = null;
+  setStoredUserProfile(null);
+
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.removeItem('planvexa_user_profile_v1');
+      localStorage.removeItem('msoffice_tasktracker_tasks_v1');
+      localStorage.removeItem('msoffice_tasktracker_progress_v1');
+      localStorage.removeItem('msoffice_tasktracker_notifs_v1');
+    } catch (e) {
+      // Ignore storage errors
+    }
+  }
+
+  // 2. Safely sign out native Firebase Auth if currently active
   try {
-    if (auth.currentUser) {
+    if (auth && auth.currentUser) {
       await signOut(auth);
     }
   } catch (e) {
     // Ignore signout error if already signed out
   }
+
+  // 3. Broadcast null auth state to all listeners
   emitAuthStateChange(null);
 }
 

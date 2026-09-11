@@ -165,6 +165,13 @@ export const HabitMatrixView: React.FC<HabitMatrixViewProps> = ({
           </thead>
 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {tasks.length === 0 && (
+              <tr>
+                <td colSpan={daysInMonth + 2} className="py-12 text-center text-slate-400 dark:text-slate-500 text-xs">
+                  No habits or tasks configured yet. Add your first routine in the Checklist or Manage tab to track your monthly habit grid.
+                </td>
+              </tr>
+            )}
             {tasks.map((task) => {
               const category = categories.find((c) => c.id === task.categoryId) || categories[0];
               const monthRate = getTaskMonthCompletionRate(task);
