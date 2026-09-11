@@ -16,6 +16,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { ThemeMode } from '../types';
+import { loginWithGoogleRedirect } from '../lib/firebase';
 
 interface FullPageLoginProps {
   onGoogleOAuthLogin: () => Promise<void>;
@@ -48,38 +49,52 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
 
   const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
 
-  const handleOAuthClick = async () => {
+  const handleOAuthClick = () => {
     setErrorMessage(null);
     setIsOAuthSubmitting(true);
-    try {
-      await onGoogleOAuthLogin();
-    } catch (err: any) {
-      console.error('Google Sign-In notice:', err);
-      const code = err?.code || '';
-      const msg = (err?.message || '').toLowerCase();
-      
-      const isDomainIssue = code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain');
-      const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
 
-      if (isDomainIssue || isBlocked) {
-        // On Vercel, if popup was blocked or Firebase domain is pending propagation,
-        // seamlessly transition to Google Gmail account entry so the user is NEVER locked out
-        setShowDirectGmailInput(true);
-        setErrorMessage(
-          isBlocked 
-            ? 'Browser blocked the Google popup. Please confirm your Gmail address below to access your workspace directly.'
-            : 'Vercel domain authentication: Please confirm your Gmail address to connect your Cloud Firestore workspace.'
-        );
-      } else if (code === 'auth/popup-closed-by-user') {
-        setErrorMessage('Sign-in was cancelled. Click Continue with Google to try again.');
-      } else {
-        setErrorMessage(
-          err?.message || 'Google authentication encountered an issue. Please try again.'
-        );
-      }
-    } finally {
-      setIsOAuthSubmitting(false);
-    }
+    // Call synchronously from user click event to preserve transient user activation
+    onGoogleOAuthLogin()
+      .catch(async (err: any) => {
+        console.error('Google Sign-In notice:', err);
+        const code = err?.code || '';
+        const msg = (err?.message || '').toLowerCase();
+        
+        const isDomainIssue = code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain');
+        const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
+
+        if (isBlocked) {
+          // If browser popup policy blocks the window, seamlessly trigger direct Google OAuth redirect
+          try {
+            console.log('Browser blocked popup, proceeding with Google direct OAuth redirect...');
+            await loginWithGoogleRedirect();
+            return;
+          } catch (redirectErr) {
+            console.warn('Redirect notice:', redirectErr);
+            setShowDirectGmailInput(true);
+            setErrorMessage(
+              'Browser blocked the popup. Please confirm your Gmail address below to access your workspace directly.'
+            );
+          }
+          return;
+        }
+
+        if (isDomainIssue) {
+          setShowDirectGmailInput(true);
+          setErrorMessage(
+            'Vercel domain authentication: Please confirm your Gmail address to connect your Cloud Firestore workspace.'
+          );
+        } else if (code === 'auth/popup-closed-by-user') {
+          setErrorMessage('Sign-in was cancelled. Click Continue with Google to try again.');
+        } else {
+          setErrorMessage(
+            err?.message || 'Google authentication encountered an issue. Please try again.'
+          );
+        }
+      })
+      .finally(() => {
+        setIsOAuthSubmitting(false);
+      });
   };
 
   const handleDirectGmailSubmit = async (e: React.FormEvent) => {

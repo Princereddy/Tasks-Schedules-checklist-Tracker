@@ -210,6 +210,13 @@ export default function App() {
       .then((user) => {
         if (user) {
           setCurrentUser(user);
+          soundFx.playSuccessChime();
+          const notif = notificationService.createNotification(
+            '☁️ Google Account Connected',
+            `Welcome, ${user.displayName || user.email}! Workspace connected with Cloud Firestore.`,
+            'info'
+          );
+          setNotifications((prev) => [notif, ...prev]);
         }
       })
       .catch((err) => {
@@ -366,15 +373,16 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
+  const handleLogin = () => {
     setIsSyncing(true);
-    try {
-      const profile = await loginWithGoogle();
-      setCurrentUser(profile);
-      soundFx.playSuccessChime();
-    } finally {
-      setIsSyncing(false);
-    }
+    return loginWithGoogle()
+      .then((profile) => {
+        setCurrentUser(profile);
+        soundFx.playSuccessChime();
+      })
+      .finally(() => {
+        setIsSyncing(false);
+      });
   };
 
   const handleLogout = async () => {

@@ -342,28 +342,30 @@ export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
 
 /**
  * Sign in with Google (Gmail) via Firebase Auth
+ * Must invoke signInWithPopup synchronously on click to preserve user gesture activation
  */
-export async function loginWithGoogle(): Promise<UserProfile> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = result.user;
+export function loginWithGoogle(): Promise<UserProfile> {
+  return signInWithPopup(auth, googleProvider).then(async (result) => {
+    const user = result.user;
 
-  const profile: UserProfile = {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
-    photoURL: user.photoURL,
-    authProvider: 'google.com',
-  };
-  if (user.email) {
-    try {
-      localStorage.setItem('PLANVEXA_LAST_GMAIL', user.email);
-    } catch (e) {
-      // Ignore
+    const profile: UserProfile = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
+      photoURL: user.photoURL,
+      authProvider: 'google.com',
+    };
+    if (user.email) {
+      try {
+        localStorage.setItem('PLANVEXA_LAST_GMAIL', user.email);
+      } catch (e) {
+        // Ignore
+      }
     }
-  }
-  await saveUserProfileDoc(profile);
-  emitAuthStateChange(profile);
-  return profile;
+    await saveUserProfileDoc(profile);
+    emitAuthStateChange(profile);
+    return profile;
+  });
 }
 
 /**
