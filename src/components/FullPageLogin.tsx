@@ -32,41 +32,27 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
 
   const handleOAuthClick = () => {
     setErrorMessage(null);
+    setIsOAuthSubmitting(true);
 
-    // Call onGoogleOAuthLogin immediately from user click to preserve transient activation
     onGoogleOAuthLogin()
-      .then(() => {
-        // Successful login handled by parent state
-      })
       .catch((err: any) => {
         console.error('Google Sign-In notice:', err);
+        setIsOAuthSubmitting(false);
         const code = err?.code || '';
         const msg = (err?.message || '').toLowerCase();
         
         const isDomainIssue = code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain');
-        const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
 
-        if (isBlocked) {
-          setErrorMessage(
-            'Browser blocked the popup window. Please allow popups for this site, or click the link below to open in a new tab.'
-          );
-        } else if (isDomainIssue) {
+        if (isDomainIssue) {
           setErrorMessage(
             'Domain unauthorized: Please add this domain to Authorized Domains in your Firebase Console.'
           );
-        } else if (code === 'auth/popup-closed-by-user') {
-          setErrorMessage('Sign-in popup was closed. Click Continue with Google to try again.');
         } else {
           setErrorMessage(
             err?.message || 'Google sign-in encountered an issue. Please try again.'
           );
         }
-      })
-      .finally(() => {
-        setIsOAuthSubmitting(false);
       });
-
-    setIsOAuthSubmitting(true);
   };
 
   const handleOpenInNewWindow = () => {

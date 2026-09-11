@@ -104,22 +104,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsProcessing(true);
     try {
       await onLogin();
-      soundFx.playSuccessChime();
-      onClose();
     } catch (err: any) {
       console.error('OAuth Login error:', err);
       const code = err?.code || '';
       const msg = (err?.message || '').toLowerCase();
       if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
         setAuthError('Firebase preview domain not authorized in Firebase Console. Please add this domain or vercel.app to Authorized Domains.');
-      } else if (code === 'auth/popup-closed-by-user') {
-        setAuthError('Sign-in popup was closed before completing.');
-      } else if (code === 'auth/popup-blocked') {
-        setAuthError('Popup was blocked by your browser. Please allow popups or open in a new tab.');
       } else {
         setAuthError(err?.message || 'Google sign-in encountered an issue. Please try again.');
       }
-    } finally {
       setIsProcessing(false);
     }
   };

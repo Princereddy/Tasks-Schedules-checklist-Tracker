@@ -341,31 +341,11 @@ export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
 }
 
 /**
- * Sign in with Google (Gmail) via Firebase Auth
- * Must invoke signInWithPopup synchronously on click to preserve user gesture activation
+ * Sign in with Google (Gmail) via Firebase Auth Full-Screen Redirect
+ * Completely eliminates popup window blocker errors by using full-screen navigation.
  */
-export function loginWithGoogle(): Promise<UserProfile> {
-  return signInWithPopup(auth, googleProvider).then(async (result) => {
-    const user = result.user;
-
-    const profile: UserProfile = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
-      photoURL: user.photoURL,
-      authProvider: 'google.com',
-    };
-    if (user.email) {
-      try {
-        localStorage.setItem('PLANVEXA_LAST_GMAIL', user.email);
-      } catch (e) {
-        // Ignore
-      }
-    }
-    await saveUserProfileDoc(profile);
-    emitAuthStateChange(profile);
-    return profile;
-  });
+export async function loginWithGoogle(): Promise<void> {
+  await signInWithRedirect(auth, googleProvider);
 }
 
 /**
