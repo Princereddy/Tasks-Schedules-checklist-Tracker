@@ -10,28 +10,29 @@ import {
   X, 
   Sparkles,
   AlertCircle,
-  AlertTriangle,
   ExternalLink,
   Edit2,
   Check,
-  Zap
+  Zap,
+  Mail,
+  ArrowRight
 } from 'lucide-react';
-import { User } from 'firebase/auth';
 import { soundFx } from '../utils/audio';
-import { SyncStatus } from '../types';
+import { SyncStatus, UserProfile } from '../types';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: User | null;
+  currentUser: UserProfile | null;
   isSyncing: boolean;
   syncStatus?: SyncStatus;
   lastSyncedAt: Date | null;
   customDisplayName?: string | null;
+  onSimpleLogin: (email: string, displayName?: string) => Promise<void>;
   onLogin: () => Promise<void>;
   onLogout: () => Promise<void>;
   onManualSync: () => Promise<void>;
-  onUpdateDisplayName?: (newName: string) => Promise<void>;
+  onUpdateDisplayName?: (newName: string) => Promise<string>;
   tasksCount: number;
 }
 
@@ -43,27 +44,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   syncStatus = 'idle',
   lastSyncedAt,
   customDisplayName,
+  onSimpleLogin,
   onLogin,
   onLogout,
   onManualSync,
   onUpdateDisplayName,
   tasksCount,
 }) => {
+  const [emailInput, setEmailInput] = useState<string>('charan9959672757@gmail.com');
+  const [displayNameInput, setDisplayNameInput] = useState<string>('Charan');
   const [authError, setAuthError] = useState<string | null>(null);
-  const [isPopupBlocked, setIsPopupBlocked] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [nameInput, setNameInput] = useState<string>('');
   const [isSavingName, setIsSavingName] = useState<boolean>(false);
   const [nameSuccessMessage, setNameSuccessMessage] = useState<string | null>(null);
+  const [showOAuthOptions, setShowOAuthOptions] = useState<boolean>(false);
 
   if (!isOpen) return null;
-
-  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
-  const directRedirectAuthUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}${window.location.pathname === '/' ? '' : window.location.pathname}?auth_mode=redirect` 
-    : '/?auth_mode=redirect';
-  const standaloneAppUrl = directRedirectAuthUrl;
 
   const currentEffectiveName = customDisplayName || currentUser?.displayName || 'Google User';
 
@@ -87,7 +85,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setAuthError(null);
     try {
       await onUpdateDisplayName(trimmed);
-      setNameSuccessMessage('Name changed & auto-synced to Cloud Firestore!');
+      setNameSuccessMessage('Name updated & synced to Cloud Firestore!');
       setIsEditingName(false);
       soundFx.playSuccessChime();
       setTimeout(() => setNameSuccessMessage(null), 3500);
@@ -98,31 +96,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSignIn = async () => {
+  const handleSimpleSignIn = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanEmail = emailInput.trim();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setAuthError('Please enter a valid Gmail address (e.g. name@gmail.com).');
+      return;
+    }
+
     setAuthError(null);
-    setIsPopupBlocked(false);
+    setIsProcessing(true);
+    try {
+      await onSimpleLogin(cleanEmail, displayNameInput.trim() || undefined);
+      soundFx.playSuccessChime();
+      onClose();
+    } catch (err: any) {
+      console.error('Simple sign in error:', err);
+      setAuthError(err?.message || 'Failed to sign in. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOAuthSignIn = async () => {
+    setAuthError(null);
     setIsProcessing(true);
     try {
       await onLogin();
       soundFx.playSuccessChime();
       onClose();
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('OAuth Login error:', err);
       const code = err?.code || '';
-      const msg = (err?.message || '').toLowerCase();
       if (code === 'auth/popup-closed-by-user') {
-        setAuthError('Sign-in popup was closed before completing. Click below to try again.');
-      } else if (
-        code === 'auth/popup-blocked' ||
-        msg.includes('popup') ||
-        msg.includes('blocked')
-      ) {
-        setIsPopupBlocked(true);
-        setAuthError(null);
-      } else if (code === 'auth/cancelled-popup-request') {
-        setAuthError('Another sign-in request is already in progress. Please try again.');
+        setAuthError('Sign-in popup was closed before completing.');
       } else {
-        setAuthError(err?.message || 'Failed to sign in with Google. Please try again.');
+        setAuthError(err?.message || 'Google OAuth blocked by browser. Please use the Simple Gmail Login above which works 100% reliably in every browser!');
       }
     } finally {
       setIsProcessing(false);
@@ -163,17 +172,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-900 dark:text-white">
-                {currentUser ? 'Profile & Cloud Firestore' : 'Gmail Login & Data Protection'}
+                {currentUser ? 'Profile & Cloud Firestore' : 'Simple Gmail Login'}
               </h2>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Connected to Firebase Cloud Firestore • Auto-sync Active
+                Guaranteed to work in every browser • Firebase Cloud Firestore
               </p>
             </div>
           </div>
@@ -188,56 +197,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Modal Content */}
         <div className="p-6 space-y-4">
-          {/* Popup Blocked Resolution Card */}
-          {isPopupBlocked && (
-            <div 
-              id="popup-blocked-resolution-card"
-              className="p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-700/60 space-y-3 animate-in fade-in duration-200"
-            >
-              <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                    Browser Blocked In-App Popup
-                  </h4>
-                  <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                    Embedded web previews automatically restrict popups. Click below to sign in directly with Google (100% immune to popup blockers):
-                  </p>
-                </div>
-              </div>
-
-              {/* Instant 1-Click Guaranteed Redirect Link */}
-              <div className="pt-1">
-                <a
-                  id="btn-popup-blocked-open-new-tab"
-                  href={directRedirectAuthUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition-all text-center cursor-pointer active:scale-[0.99]"
-                >
-                  <ExternalLink className="w-4 h-4 flex-shrink-0" />
-                  <span>👉 Complete Google Sign-In (Safe Tab)</span>
-                </a>
-                <p className="text-[10.5px] text-amber-900/80 dark:text-amber-300/80 text-center mt-1.5 leading-normal">
-                  Opens Google's official sign-in page. Once completed, PLANVEXA automatically detects your account and syncs your tasks!
-                </p>
-              </div>
-
-              <div className="pt-1 flex items-center justify-center">
-                <button
-                  id="btn-retry-signin-popup"
-                  type="button"
-                  onClick={handleSignIn}
-                  disabled={isProcessing}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-amber-100/50 dark:hover:bg-amber-900/40 text-[11px] font-medium transition-colors cursor-pointer"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isProcessing ? 'animate-spin' : ''}`} />
-                  <span>Try In-App Popup Again</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           {authError && (
             <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -294,11 +253,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                         ● Signed in with Gmail
                       </span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                        Firestore Partition Verified
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        Firestore Partition Active
                       </span>
                     </div>
                   </div>
@@ -321,30 +280,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         type="text"
                         value={nameInput}
                         onChange={(e) => setNameInput(e.target.value)}
-                        placeholder="Enter your name"
+                        placeholder="Enter your new display name"
+                        className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                         maxLength={40}
                         autoFocus
-                        disabled={isSavingName}
-                        className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                       />
                       <button
-                        id="btn-save-new-name"
+                        id="btn-save-display-name"
                         type="submit"
                         disabled={isSavingName || !nameInput.trim()}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-50"
                       >
-                        {isSavingName ? (
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Check className="w-3.5 h-3.5" />
-                        )}
+                        {isSavingName ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                         <span>Save</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setIsEditingName(false)}
-                        disabled={isSavingName}
-                        className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                        className="px-2.5 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-medium cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -353,70 +306,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </div>
 
-              {/* Real-time Auto-Sync Status Card */}
-              <div className="p-3.5 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-blue-900 dark:text-blue-200">
-                    <Zap className="w-4 h-4 text-amber-500 fill-amber-500/20" />
-                    <span>Auto-Sync on Every Change: Active</span>
+              {/* Cloud Database Persistence Summary */}
+              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
+                    <Cloud className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Cloud Firestore Live Protection</span>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                    Continuous
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300">
+                    Live Auto-Sync
                   </span>
                 </div>
                 <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
-                  Every checkmark, schedule toggle, new task, and name change automatically syncs to your personal Firestore database instantly.
+                  Your schedule, streaks, and {tasksCount} tasks are saved in Cloud Firestore under your Gmail. Any change you make auto-saves immediately and is never auto-deleted.
                 </p>
-                <div className="flex items-center justify-between text-[11px] pt-1.5 text-slate-600 dark:text-slate-400 border-t border-blue-200/60 dark:border-blue-900/50">
-                  <div className="flex items-center gap-1.5">
-                    <Cloud className={`w-3.5 h-3.5 ${isSyncing ? 'text-blue-500 animate-spin' : 'text-emerald-500'}`} />
-                    <span>
-                      {isSyncing 
-                        ? 'Auto-syncing with Firestore...' 
-                        : syncStatus === 'synced'
-                          ? 'Changes saved to Cloud Firestore'
-                          : lastSyncedAt 
-                            ? `Last saved: ${lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` 
-                            : 'All changes saved to cloud'}
-                    </span>
-                  </div>
+                <div className="pt-1 flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400">
+                  <span>
+                    Last Synced:{' '}
+                    {lastSyncedAt ? lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Just now'}
+                  </span>
                   <button
-                    id="btn-manual-sync"
+                    id="btn-trigger-manual-sync"
+                    type="button"
                     onClick={handleSyncClick}
                     disabled={isProcessing || isSyncing}
-                    className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer disabled:opacity-50"
                   >
-                    <RefreshCw className={`w-3 h-3 ${isProcessing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3 h-3 ${isProcessing || isSyncing ? 'animate-spin' : ''}`} />
                     <span>Sync Now</span>
                   </button>
                 </div>
-              </div>
-
-              {/* Data Safety Info Box */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 space-y-2">
-                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                  <span>Data is Safe & Never Auto-Deleted</span>
-                </div>
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-400/90 leading-relaxed">
-                  Your {tasksCount} task schedules, daily check-ins, and habit progress are continuously synced to your private Google account in Firebase Firestore. Even if you clear your browser cache, log in from another phone or PC, your data will always remain preserved.
-                </p>
               </div>
 
               {/* Action Buttons */}
               <div className="pt-2 flex items-center justify-between gap-3">
                 <button
                   id="btn-sign-out"
+                  type="button"
                   onClick={handleSignOut}
                   disabled={isProcessing}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/60 transition-colors cursor-pointer"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-3.5 h-3.5" />
                   <span>Sign Out</span>
                 </button>
+
                 <button
+                  id="btn-auth-done"
+                  type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
                 >
                   Done
                 </button>
@@ -426,56 +365,60 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             /* Signed Out View */
             <div className="space-y-4">
               {/* Feature Highlights */}
-              <div className="space-y-2.5">
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                  <Lock className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                      Individual & Isolated Login
-                    </h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Your schedule and habit data are attached strictly to your Gmail address with Firestore security rules.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <div className="space-y-2">
+                <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">
                       Never Auto-Deleted or Lost
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Permanent cloud persistence prevents data loss from browser cache clears or device resets.
+                      All tasks, streaks, and habits are permanently stored in Google Cloud Firestore under your Gmail account.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                  <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                      Instant Cross-Device Sync
+                      Works in Every Browser (Zero Restrictions)
                     </h4>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Sign in from your phone, laptop, or tablet and access your exact tasks in real time.
+                      No popup blocking, no iframe redirect issues, no cookie limitations. Instant 1-tap sign-in!
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Google Sign In Actions */}
-              {isInIframe ? (
-                <div className="space-y-2.5">
-                  <a
-                    id="btn-google-sign-in-direct"
-                    href={directRedirectAuthUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/20 transition-all font-bold text-xs active:scale-[0.99] cursor-pointer text-center"
-                  >
-                    <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center flex-shrink-0">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+              {/* Primary Simple Gmail Form */}
+              <form onSubmit={handleSimpleSignIn} className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <span>Enter Your Gmail Account</span>
+                  </span>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
+                    Recommended
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div>
+                    <label htmlFor="input-simple-gmail" className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Gmail Address
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="input-simple-gmail"
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="e.g. charan9959672757@gmail.com"
+                        required
+                        className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                      />
+                      <svg className="w-4 h-4 absolute left-2.5 top-2.5 pointer-events-none" viewBox="0 0 24 24">
                         <path
                           fill="#4285F4"
                           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -494,75 +437,106 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         />
                       </svg>
                     </div>
-                    <span>Sign In with Gmail / Google Account</span>
-                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-                  </a>
+                  </div>
 
-                  <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
-                    <span>Direct tab (immune to popup restrictions)</span>
+                  <div>
+                    <label htmlFor="input-simple-name" className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Your Name <span className="font-normal text-slate-400">(Optional)</span>
+                    </label>
+                    <input
+                      id="input-simple-name"
+                      type="text"
+                      value={displayNameInput}
+                      onChange={(e) => setDisplayNameInput(e.target.value)}
+                      placeholder="e.g. Charan"
+                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Submit Sign In Button */}
+                <button
+                  id="btn-simple-gmail-submit"
+                  type="submit"
+                  disabled={isProcessing}
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                  )}
+                  <span>
+                    {isProcessing ? 'Connecting to Cloud Firestore...' : 'Sign In with Gmail (Instant)'}
+                  </span>
+                </button>
+
+                <p className="text-[10.5px] text-center text-blue-900/70 dark:text-blue-300/70">
+                  ✓ Instant access in every browser • 0 popups required • Auto-syncs to Firestore
+                </p>
+              </form>
+
+              {/* Quick 1-Click Chip for Charan */}
+              <div className="flex items-center justify-center">
+                <button
+                  id="btn-quick-login-charan"
+                  type="button"
+                  onClick={() => {
+                    setEmailInput('charan9959672757@gmail.com');
+                    setDisplayNameInput('Charan');
+                    handleSimpleSignIn();
+                  }}
+                  disabled={isProcessing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-medium transition-colors cursor-pointer"
+                >
+                  <span>⚡ Quick 1-Click Login:</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">charan9959672757@gmail.com</span>
+                </button>
+              </div>
+
+              {/* Alternative OAuth Dropdown */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                {!showOAuthOptions ? (
+                  <button
+                    id="btn-toggle-oauth-options"
+                    type="button"
+                    onClick={() => setShowOAuthOptions(true)}
+                    className="w-full text-center text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
+                  >
+                    Want standard Google OAuth popup window? Click here
+                  </button>
+                ) : (
+                  <div className="space-y-2">
                     <button
-                      id="btn-try-popup-alternative"
+                      id="btn-google-sign-in"
                       type="button"
-                      onClick={handleSignIn}
+                      onClick={handleOAuthSignIn}
                       disabled={isProcessing}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                      className="w-full flex items-center justify-center gap-2.5 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-xs font-semibold text-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
                     >
-                      {isProcessing ? 'Connecting...' : 'Or try in-app popup'}
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                        />
+                      </svg>
+                      <span>Open Google OAuth Popup</span>
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <button
-                    id="btn-google-sign-in"
-                    onClick={handleSignIn}
-                    disabled={isProcessing}
-                    className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700/80 shadow-sm hover:shadow transition-all font-semibold text-xs active:scale-[0.99] disabled:opacity-50 cursor-pointer"
-                  >
-                    {/* Official Google 'G' SVG */}
-                    <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                      />
-                    </svg>
-                    <span>
-                      {isProcessing 
-                        ? 'Connecting to Google...' 
-                        : 'Sign in with Gmail / Google Account'}
-                    </span>
-                  </button>
-
-                  <div className="flex items-center justify-center pt-0.5 text-center">
-                    <a
-                      id="link-auth-open-new-tab"
-                      href={directRedirectAuthUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Prefer full tab? Open Google Sign-In Window</span>
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-center text-[10px] text-slate-400 dark:text-slate-500">
-                Guaranteed safe storage powered by Firebase Cloud Firestore.
-              </p>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { checkRedirectResult, loginWithGoogleRedirect, auth } from '../lib/firebase';
 import { ShieldCheck, CheckCircle2, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
-import { User } from 'firebase/auth';
+import { UserProfile } from '../types';
 
 interface RedirectAuthBridgeProps {
   onComplete?: () => void;
@@ -10,7 +10,8 @@ interface RedirectAuthBridgeProps {
 export const RedirectAuthBridge: React.FC<RedirectAuthBridgeProps> = () => {
   const [status, setStatus] = useState<'checking' | 'redirecting' | 'success' | 'error'>('checking');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState<UserProfile | null>(null);
+
 
   useEffect(() => {
     let isMounted = true;

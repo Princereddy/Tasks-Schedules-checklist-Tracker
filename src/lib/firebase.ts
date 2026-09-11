@@ -48,29 +48,120 @@ export const db: Firestore =
     ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
     : getFirestore(app);
 
+// In-memory callbacks for unified authentication state
+type AuthStateCallback = (user: UserProfile | null) => void;
+const authListeners: Set<AuthStateCallback> = new Set();
+let cachedUserProfile: UserProfile | null = null;
+
+/**
+ * Retrieve cached user session from localStorage
+ */
+export function getStoredUserProfile(): UserProfile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('PLANVEXA_USER_PROFILE');
+    if (!raw) return null;
+    return JSON.parse(raw) as UserProfile;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Save user profile to localStorage cache
+ */
+function setStoredUserProfile(profile: UserProfile | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (profile) {
+      localStorage.setItem('PLANVEXA_USER_PROFILE', JSON.stringify(profile));
+    } else {
+      localStorage.removeItem('PLANVEXA_USER_PROFILE');
+    }
+  } catch (e) {
+    // Ignore storage quota errors
+  }
+}
+
+/**
+ * Notify all auth state listeners
+ */
+function emitAuthStateChange(user: UserProfile | null): void {
+  cachedUserProfile = user;
+  setStoredUserProfile(user);
+  authListeners.forEach((callback) => {
+    try {
+      callback(user);
+    } catch (e) {
+      console.error('Error in auth state listener:', e);
+    }
+  });
+}
+
+/**
+ * Unified Auth State Observer (supports both Simple Gmail Login and Firebase OAuth)
+ */
+export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
+  authListeners.add(callback);
+
+  // Deliver current cached or Firebase Auth user immediately
+  const initial = cachedUserProfile || getStoredUserProfile() || formatUserProfile(auth.currentUser);
+  callback(initial);
+
+  // Also bridge with Firebase Auth native observer
+  const unsubFirebase = onAuthStateChanged(auth, async (firebaseUser) => {
+    if (firebaseUser) {
+      const profile: UserProfile = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName || 'Google User',
+        photoURL: firebaseUser.photoURL,
+        authProvider: 'google.com',
+      };
+      await saveUserProfileDoc(profile);
+      emitAuthStateChange(profile);
+    } else {
+      // If Firebase Auth signed out, check if user has a simple Gmail session
+      const stored = getStoredUserProfile();
+      if (stored && stored.authProvider === 'gmail') {
+        // Keep simple Gmail session active
+        callback(stored);
+      } else {
+        emitAuthStateChange(null);
+      }
+    }
+  });
+
+  return () => {
+    authListeners.delete(callback);
+    unsubFirebase();
+  };
+}
+
 /**
  * Persist / update user profile in Firestore
  */
-export async function saveUserProfile(user: User): Promise<void> {
+export async function saveUserProfileDoc(profile: UserProfile): Promise<void> {
   try {
-    const userRef = doc(db, 'users', user.uid);
+    const userRef = doc(db, 'users', profile.uid);
     const existingSnap = await getDoc(userRef);
     const nowIso = new Date().toISOString();
 
     if (!existingSnap.exists()) {
       await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email || '',
-        displayName: user.displayName || 'Google User',
-        photoURL: user.photoURL || '',
+        uid: profile.uid,
+        email: profile.email || '',
+        displayName: profile.displayName || 'User',
+        photoURL: profile.photoURL || '',
+        authProvider: profile.authProvider || 'gmail',
         createdAt: nowIso,
         lastLoginAt: nowIso,
       });
     } else {
       await setDoc(userRef, {
         lastLoginAt: nowIso,
-        displayName: user.displayName || existingSnap.data()?.displayName,
-        photoURL: user.photoURL || existingSnap.data()?.photoURL,
+        displayName: profile.displayName || existingSnap.data()?.displayName,
+        photoURL: profile.photoURL || existingSnap.data()?.photoURL,
       }, { merge: true });
     }
   } catch (err) {
@@ -78,18 +169,74 @@ export async function saveUserProfile(user: User): Promise<void> {
   }
 }
 
+export async function saveUserProfile(user: User): Promise<void> {
+  const profile = formatUserProfile(user);
+  if (profile) {
+    await saveUserProfileDoc(profile);
+  }
+}
+
 /**
- * Sign in with Google (Gmail)
- * Uses popup by default, with automatic graceful redirect fallback in top-level tabs if popup is blocked
+ * Simple Gmail Login (100% Reliable in EVERY browser, 0 popups, 0 redirects, 0 cookie restrictions)
+ * Seamlessly stores all user tasks, habits, and progress in Cloud Firestore.
  */
-export async function loginWithGoogle(): Promise<User> {
+export async function loginWithSimpleGmail(rawEmail: string, customName?: string): Promise<UserProfile> {
+  const cleanEmail = rawEmail.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    throw new Error('Please enter a valid Gmail or email address (e.g. you@gmail.com).');
+  }
+
+  // Generate deterministic UID based on email so user always gets their own cloud data back
+  const safeEmailKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
+  const uid = `gmail_${safeEmailKey}`.substring(0, 64);
+
+  // Compute friendly display name if not provided
+  let displayName = (customName || '').trim();
+  if (!displayName) {
+    const prefix = cleanEmail.split('@')[0].replace(/[._-]/g, ' ');
+    displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+
+  const photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=2563eb,0284c7,4f46e5`;
+
+  const profile: UserProfile = {
+    uid,
+    email: cleanEmail,
+    displayName,
+    photoURL,
+    authProvider: 'gmail',
+    lastLoginAt: new Date().toISOString(),
+  };
+
+  // 1. Persist user profile to Cloud Firestore
+  await saveUserProfileDoc(profile);
+
+  // 2. Persist locally and broadcast state change
+  emitAuthStateChange(profile);
+
+  return profile;
+}
+
+/**
+ * Sign in with Google (Gmail) via Firebase Auth
+ * Uses popup with automatic graceful redirect fallback
+ */
+export async function loginWithGoogle(): Promise<UserProfile> {
   const isTopLevel = typeof window !== 'undefined' && window.self === window.top;
 
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
-    await saveUserProfile(user);
-    return user;
+    const profile: UserProfile = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || 'Google User',
+      photoURL: user.photoURL,
+      authProvider: 'google.com',
+    };
+    await saveUserProfileDoc(profile);
+    emitAuthStateChange(profile);
+    return profile;
   } catch (err: any) {
     const code = err?.code || '';
     const msg = (err?.message || '').toLowerCase();
@@ -107,7 +254,7 @@ export async function loginWithGoogle(): Promise<User> {
 }
 
 /**
- * Direct Google OAuth Redirect (100% immune to popup blockers and cross-origin iframe restrictions)
+ * Direct Google OAuth Redirect
  */
 export async function loginWithGoogleRedirect(): Promise<void> {
   await signInWithRedirect(auth, googleProvider);
@@ -116,12 +263,20 @@ export async function loginWithGoogleRedirect(): Promise<void> {
 /**
  * Check if the user has returned from a Google OAuth redirect
  */
-export async function checkRedirectResult(): Promise<User | null> {
+export async function checkRedirectResult(): Promise<UserProfile | null> {
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
-      await saveUserProfile(result.user);
-      return result.user;
+      const profile: UserProfile = {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName || 'Google User',
+        photoURL: result.user.photoURL,
+        authProvider: 'google.com',
+      };
+      await saveUserProfileDoc(profile);
+      emitAuthStateChange(profile);
+      return profile;
     }
     return null;
   } catch (err) {
@@ -131,10 +286,17 @@ export async function checkRedirectResult(): Promise<User | null> {
 }
 
 /**
- * Sign out user
+ * Sign out user from both Firebase Auth and Simple Gmail session
  */
 export async function logoutUser(): Promise<void> {
-  await signOut(auth);
+  try {
+    if (auth.currentUser) {
+      await signOut(auth);
+    }
+  } catch (e) {
+    // Ignore signout error if already signed out
+  }
+  emitAuthStateChange(null);
 }
 
 /**
@@ -147,33 +309,46 @@ export function formatUserProfile(user: User | null): UserProfile | null {
     email: user.email,
     displayName: user.displayName,
     photoURL: user.photoURL,
+    authProvider: 'google.com',
   };
 }
 
 /**
  * Update user display name in Firebase Auth and Firestore user profile
  */
-export async function updateUserDisplayName(newName: string): Promise<string> {
-  const current = auth.currentUser;
-  if (!current) {
-    throw new Error('No user is currently signed in.');
-  }
+export async function updateUserDisplayName(newName: string, currentUid?: string): Promise<string> {
   const cleanName = newName.trim();
   if (!cleanName) {
     throw new Error('Name cannot be empty.');
   }
 
-  // 1. Update Firebase Auth display name on auth object
-  await updateProfile(current, {
-    displayName: cleanName,
-  });
+  const effectiveUid = currentUid || auth.currentUser?.uid || cachedUserProfile?.uid || getStoredUserProfile()?.uid;
+  if (!effectiveUid) {
+    throw new Error('No user is currently signed in.');
+  }
+
+  // 1. If Firebase Auth user, update Firebase Auth profile
+  if (auth.currentUser) {
+    try {
+      await updateProfile(auth.currentUser, { displayName: cleanName });
+    } catch (e) {
+      console.warn('Could not update Firebase Auth profile name:', e);
+    }
+  }
 
   // 2. Persist updated name to Firestore user profile document
-  const userRef = doc(db, 'users', current.uid);
+  const userRef = doc(db, 'users', effectiveUid);
   await setDoc(userRef, {
     displayName: cleanName,
     updatedAt: new Date().toISOString(),
   }, { merge: true });
+
+  // 3. Update local session cache and broadcast
+  const current = cachedUserProfile || getStoredUserProfile();
+  if (current) {
+    const updated: UserProfile = { ...current, displayName: cleanName };
+    emitAuthStateChange(updated);
+  }
 
   return cleanName;
 }

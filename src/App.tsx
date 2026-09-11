@@ -25,7 +25,8 @@ import {
   AppNotification, 
   TaskStatus,
   ThemeMode,
-  SyncStatus
+  SyncStatus,
+  UserProfile
 } from './types';
 
 import { 
@@ -50,11 +51,13 @@ import { soundFx } from './utils/audio';
 import { notificationService } from './utils/notifications';
 import { getStoredTheme, applyTheme } from './utils/theme';
 
-import { User, onAuthStateChanged } from 'firebase/auth';
 import {
   auth,
+  loginWithSimpleGmail,
   loginWithGoogle,
   logoutUser,
+  onAppAuthStateChanged,
+  getStoredUserProfile,
   ensureUserDataInitialized,
   subscribeToUserTasks,
   subscribeToUserProgress,
@@ -67,6 +70,7 @@ import {
   updateUserDisplayName,
   checkRedirectResult,
 } from './lib/firebase';
+
 
 export default function App() {
   // Check if we are in direct OAuth redirect bridge mode
@@ -90,7 +94,7 @@ export default function App() {
   }, [themeMode]);
 
   // Firebase Authentication & Cloud Sync state
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUserProfile());
   const [customDisplayName, setCustomDisplayName] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
@@ -121,9 +125,9 @@ export default function App() {
   const [isNotifDrawerOpen, setIsNotifDrawerOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
-  // Firebase Auth Observer & Real-time Cloud Sync
+  // Unified Firebase & Simple Gmail Auth Observer & Real-time Cloud Sync
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAppAuthStateChanged(async (user) => {
       // Clear any prior Firestore subscriptions
       if (unsubTasksRef.current) {
         unsubTasksRef.current();
@@ -169,7 +173,7 @@ export default function App() {
           // Add welcome sync notification
           const notif = notificationService.createNotification(
             '☁️ Cloud Firestore Connected',
-            `Signed in as ${user.email}. Your tasks and habits are safely backed up and auto-sync is active.`,
+            `Signed in as ${user.email}. All tasks and habits auto-sync to your personal Firestore database.`,
             'info'
           );
           setNotifications((prev) => [notif, ...prev]);
@@ -197,6 +201,7 @@ export default function App() {
   }, []);
 
   // Check redirect result on app initialization for standalone windows
+
   useEffect(() => {
     checkRedirectResult().catch((err) => {
       console.warn('Silent checkRedirectResult:', err);
@@ -344,6 +349,17 @@ export default function App() {
   };
 
   // Auth Operations
+  const handleSimpleLogin = async (email: string, displayName?: string) => {
+    setIsSyncing(true);
+    try {
+      const profile = await loginWithSimpleGmail(email, displayName);
+      setCurrentUser(profile);
+      soundFx.playSuccessChime();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleLogin = async () => {
     await loginWithGoogle();
   };
@@ -375,16 +391,14 @@ export default function App() {
     }
   };
 
-  const handleUpdateDisplayName = async (newName: string) => {
-    if (!currentUser) return;
+  const handleUpdateDisplayName = async (newName: string): Promise<string> => {
+    if (!currentUser) return '';
     setIsSyncing(true);
     setSyncStatus('saving');
     try {
-      const updated = await updateUserDisplayName(newName);
+      const updated = await updateUserDisplayName(newName, currentUser.uid);
       setCustomDisplayName(updated);
-      if (auth.currentUser) {
-        setCurrentUser({ ...auth.currentUser } as User);
-      }
+      setCurrentUser((prev) => (prev ? { ...prev, displayName: updated } : null));
       setLastSyncedAt(new Date());
       setSyncStatus('synced');
       const notif = notificationService.createNotification(
@@ -397,6 +411,7 @@ export default function App() {
       setTimeout(() => {
         setSyncStatus((curr) => (curr === 'synced' ? 'idle' : curr));
       }, 2500);
+      return updated;
     } catch (err: any) {
       console.error('Failed to change display name:', err);
       setSyncStatus('error');
@@ -408,6 +423,7 @@ export default function App() {
       setIsSyncing(false);
     }
   };
+
 
   const handleManualSync = async () => {
     if (!currentUser) return;
@@ -844,6 +860,7 @@ export default function App() {
         isSyncing={isSyncing}
         syncStatus={syncStatus}
         lastSyncedAt={lastSyncedAt}
+        onSimpleLogin={handleSimpleLogin}
         onLogin={handleLogin}
         onLogout={handleLogout}
         onManualSync={handleManualSync}

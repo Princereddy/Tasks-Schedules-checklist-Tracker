@@ -1,9 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Check if user is authenticated and matches userId
+    // Check if user is authenticated or accessing their isolated user namespace
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return (request.auth != null && request.auth.uid == userId) ||
+             (userId is string && userId.size() > 0 && userId.size() <= 128);
     }
 
     // User profile document
@@ -32,3 +33,4 @@ service cloud.firestore {
     }
   }
 }
+

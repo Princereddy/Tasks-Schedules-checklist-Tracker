@@ -78,6 +78,7 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  authProvider?: 'gmail' | 'google.com';
   createdAt?: string;
   lastLoginAt?: string;
 }

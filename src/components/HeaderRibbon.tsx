@@ -22,9 +22,8 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { AVAILABLE_YEARS, MONTH_NAMES } from '../utils/dates';
-import { ThemeMode, SyncStatus } from '../types';
+import { ThemeMode, SyncStatus, UserProfile } from '../types';
 import { soundFx } from '../utils/audio';
-import { User } from 'firebase/auth';
 
 interface HeaderRibbonProps {
   selectedYear: number;
@@ -34,8 +33,9 @@ interface HeaderRibbonProps {
   unreadNotifsCount: number;
   soundEnabled: boolean;
   themeMode: ThemeMode;
-  currentUser: User | null;
+  currentUser: UserProfile | null;
   customDisplayName?: string | null;
+
   isSyncing: boolean;
   syncStatus?: SyncStatus;
   onOpenAuthModal: () => void;

@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Cloud, AlertCircle, X, ChevronRight, CheckCircle2, UserCheck, RefreshCw, Zap } from 'lucide-react';
-import { User } from 'firebase/auth';
-import { SyncStatus } from '../types';
+import { SyncStatus, UserProfile } from '../types';
 
 interface CloudSyncBannerProps {
-  currentUser: User | null;
+  currentUser: UserProfile | null;
   isSyncing: boolean;
+
   syncStatus?: SyncStatus;
   customDisplayName?: string | null;
   onOpenAuthModal: () => void;
