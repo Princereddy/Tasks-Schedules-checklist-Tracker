@@ -10,7 +10,9 @@ import {
   X, 
   AlertCircle,
   Edit2,
-  Check
+  Check,
+  Mail,
+  ArrowRight
 } from 'lucide-react';
 import { soundFx } from '../utils/audio';
 import { SyncStatus, UserProfile } from '../types';
@@ -23,7 +25,7 @@ interface AuthModalProps {
   syncStatus?: SyncStatus;
   lastSyncedAt: Date | null;
   customDisplayName?: string | null;
-  onSimpleLogin?: (email: string, displayName?: string) => Promise<void>;
+  onGmailLogin?: (email: string, displayName?: string) => Promise<void>;
   onLogin: () => Promise<void>;
   onLogout: () => Promise<void>;
   onManualSync: () => Promise<void>;
@@ -39,6 +41,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   syncStatus = 'idle',
   lastSyncedAt,
   customDisplayName,
+  onGmailLogin,
   onLogin,
   onLogout,
   onManualSync,
@@ -108,10 +111,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } catch (err: any) {
       console.error('OAuth Login error:', err);
       const code = err?.code || '';
-      if (code === 'auth/popup-closed-by-user') {
+      const msg = (err?.message || '').toLowerCase();
+      if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+        setAuthError('Firebase preview domain not authorized in Firebase Console. Please add this domain or vercel.app to Authorized Domains.');
+      } else if (code === 'auth/popup-closed-by-user') {
         setAuthError('Sign-in popup was closed before completing.');
       } else if (code === 'auth/popup-blocked') {
-        setAuthError('Popup was blocked by your browser. Please allow popups or open in a new window.');
+        setAuthError('Popup was blocked by your browser. Please allow popups or open in a new tab.');
       } else {
         setAuthError(err?.message || 'Google sign-in encountered an issue. Please try again.');
       }

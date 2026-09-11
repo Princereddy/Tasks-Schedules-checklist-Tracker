@@ -56,6 +56,8 @@ import { getStoredTheme, applyTheme } from './utils/theme';
 import {
   auth,
   loginWithGoogle,
+  loginWithGoogleRedirect,
+  loginWithGmailAccount,
   logoutUser,
   onAppAuthStateChanged,
   getStoredUserProfile,
@@ -344,6 +346,17 @@ export default function App() {
   };
 
   // Auth Operations
+  const handleGmailLogin = async (email: string, displayName?: string) => {
+    setIsSyncing(true);
+    try {
+      const profile = await loginWithGmailAccount(email, displayName);
+      setCurrentUser(profile);
+      soundFx.playSuccessChime();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleLogin = async () => {
     setIsSyncing(true);
     try {
@@ -704,6 +717,7 @@ export default function App() {
     return (
       <FullPageLogin
         onGoogleOAuthLogin={handleLogin}
+        onGoogleRedirectLogin={loginWithGoogleRedirect}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);
@@ -888,6 +902,7 @@ export default function App() {
         syncStatus={syncStatus}
         lastSyncedAt={lastSyncedAt}
         onLogin={handleLogin}
+        onGmailLogin={handleGmailLogin}
         onLogout={handleLogout}
         onManualSync={handleManualSync}
         onUpdateDisplayName={handleUpdateDisplayName}
