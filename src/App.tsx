@@ -56,8 +56,6 @@ import { getStoredTheme, applyTheme } from './utils/theme';
 import {
   auth,
   loginWithGoogle,
-  loginWithGoogleRedirect,
-  loginWithGoogleIdToken,
   loginWithGmailAccount,
   logoutUser,
   onAppAuthStateChanged,
@@ -721,26 +719,6 @@ export default function App() {
     soundFx.playSuccessChime();
   };
 
-  const handleIdTokenLogin = async (idToken: string) => {
-    setIsSyncing(true);
-    try {
-      const user = await loginWithGoogleIdToken(idToken);
-      setCurrentUser(user);
-      soundFx.playSuccessChime();
-      const notif = notificationService.createNotification(
-        '☁️ Google Account Connected',
-        `Welcome, ${user.displayName || user.email}! Workspace connected with Cloud Firestore.`,
-        'info'
-      );
-      setNotifications((prev) => [notif, ...prev]);
-    } catch (err: any) {
-      console.error('ID Token Login error:', err);
-      throw err;
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const unreadNotifsCount = notifications.filter((n) => !n.read).length;
 
   // While restoring session from Google OAuth redirect or Firebase Auth
@@ -768,8 +746,7 @@ export default function App() {
     return (
       <FullPageLogin
         onGoogleOAuthLogin={handleLogin}
-        onGoogleRedirectLogin={loginWithGoogleRedirect}
-        onGoogleIdTokenLogin={handleIdTokenLogin}
+        onGmailDirectLogin={handleGmailLogin}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);

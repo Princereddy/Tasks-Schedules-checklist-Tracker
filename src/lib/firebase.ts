@@ -341,51 +341,29 @@ export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
 }
 
 /**
- * Sign in with Google (Gmail) via Firebase Auth with GSI fallback
+ * Sign in with Google (Gmail) via Firebase Auth
  */
 export async function loginWithGoogle(): Promise<UserProfile> {
-  const isTopLevel = typeof window !== 'undefined' && window.self === window.top;
+  const result = await signInWithPopup(auth, googleProvider);
+  const user = result.user;
 
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-
-    const profile: UserProfile = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
-      photoURL: user.photoURL,
-      authProvider: 'google.com',
-    };
-    await saveUserProfileDoc(profile);
-    emitAuthStateChange(profile);
-    return profile;
-  } catch (err: any) {
-    const code = err?.code || '';
-    const msg = (err?.message || '').toLowerCase();
-    const isDomainIssue = code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain');
-    const isBlocked = code === 'auth/popup-blocked' || msg.includes('popup') || msg.includes('blocked');
-
-    // Attempt GSI Token Client if Firebase Popup encountered a domain or popup restriction
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2 && (isDomainIssue || isBlocked)) {
-      try {
-        console.log('Attempting Google Identity Services client fallback...');
-        const gsiProfile = await loginWithGoogleGsiTokenClient();
-        return gsiProfile;
-      } catch (gsiErr: any) {
-        console.warn('GSI fallback notice:', gsiErr);
-      }
+  const profile: UserProfile = {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
+    photoURL: user.photoURL,
+    authProvider: 'google.com',
+  };
+  if (user.email) {
+    try {
+      localStorage.setItem('PLANVEXA_LAST_GMAIL', user.email);
+    } catch (e) {
+      // Ignore
     }
-
-    // If popup blocked and running in top-level tab, smoothly proceed with redirect
-    if (isBlocked && isTopLevel) {
-      console.log('Popup blocked in top-level window, initiating direct Google OAuth redirect...');
-      await signInWithRedirect(auth, googleProvider);
-      return new Promise(() => {}); // Will navigate to accounts.google.com
-    }
-
-    throw err;
   }
+  await saveUserProfileDoc(profile);
+  emitAuthStateChange(profile);
+  return profile;
 }
 
 /**
