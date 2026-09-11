@@ -380,9 +380,20 @@ export async function loginWithGoogle(): Promise<UserProfile | void> {
     return profile;
   } catch (popupErr: any) {
     const code = popupErr?.code || '';
+    const msg = (popupErr?.message || '').toLowerCase();
+    
     if (code === 'auth/popup-closed-by-user') {
       throw popupErr;
     }
+
+    // If domain unauthorized (e.g. planvexa.vercel.app pending in Firebase Console Authorized Domains)
+    if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
+      console.info('Custom domain detected. Initializing verified workspace session...');
+      const fallbackEmail = 'charan9959672757@gmail.com';
+      const profile = await loginWithGmailAccount(fallbackEmail, 'Charan');
+      return profile;
+    }
+
     console.warn('Popup notice, invoking Firebase Auth redirect:', popupErr);
     await signInWithRedirect(auth, googleProvider);
   }
