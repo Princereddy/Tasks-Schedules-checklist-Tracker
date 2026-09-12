@@ -26,4 +26,5 @@ User-agent: Mediapartners-Google
 Allow: /
 
 # Sitemap Location
+Sitemap: https://ais-dev-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app/sitemap.xml
 Sitemap: https://ais-pre-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app/sitemap.xml

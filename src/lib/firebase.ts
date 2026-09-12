@@ -251,6 +251,14 @@ export async function signUpWithEmailPassword(params: {
 
   const uid = getDeterministicUid(cleanEmail);
   const passwordHash = await hashPassword(password);
+
+  // 1. Check if user already exists in Firestore to protect existing accounts
+  const existingUserRef = doc(db, 'users', uid);
+  const existingSnap = await getDoc(existingUserRef);
+  if (existingSnap.exists()) {
+    throw new Error('An account with this Email ID already exists. Please click "Sign In" to enter your password.');
+  }
+
   const photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=2563eb,0284c7,4f46e5`;
 
   const profile: UserProfile = {
@@ -282,85 +290,15 @@ export async function signUpWithEmailPassword(params: {
   } catch (fbAuthErr: any) {
     const code = fbAuthErr?.code || '';
     if (code === 'auth/email-already-in-use') {
-      console.info('Email exists in Firebase Auth pool. Proceeding to update workspace credentials...');
-    } else {
-      console.info('Firebase Auth registration note:', fbAuthErr?.message || fbAuthErr);
+      throw new Error('An account with this Email ID already exists. Please click "Sign In" to enter your password.');
     }
+    console.info('Firebase Auth registration note:', fbAuthErr?.message || fbAuthErr);
   }
 
   // 3. Save User Profile and New Password Digest in Firestore
   await saveUserProfileDoc(profile, { passwordHash });
 
   // 4. Update Local Session & Emit state
-  emitAuthStateChange(profile);
-  return profile;
-}
-
-/**
- * RESET / OVERRIDE PASSWORD with Email ID and New Password
- */
-export async function resetPasswordWithEmail(params: {
-  email: string;
-  newPassword: string;
-  confirmPassword?: string;
-}): Promise<UserProfile> {
-  const cleanEmail = (params.email || '').trim().toLowerCase();
-  const newPassword = params.newPassword || '';
-  const confirmPassword = params.confirmPassword || '';
-
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
-    throw new Error('Please enter a valid Email ID.');
-  }
-
-  if (!newPassword || newPassword.length < 6) {
-    throw new Error('New password must be at least 6 characters long.');
-  }
-
-  if (confirmPassword && newPassword !== confirmPassword) {
-    throw new Error('New passwords do not match.');
-  }
-
-  const uid = getDeterministicUid(cleanEmail);
-  const passwordHash = await hashPassword(newPassword);
-
-  // Check if doc exists in Firestore or create fresh profile
-  const userRef = doc(db, 'users', uid);
-  const userSnap = await getDoc(userRef);
-
-  let profile: UserProfile;
-  if (userSnap.exists()) {
-    const existing = userSnap.data();
-    profile = {
-      uid,
-      email: cleanEmail,
-      displayName: existing.displayName || cleanEmail.split('@')[0],
-      photoURL: existing.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(existing.displayName || cleanEmail)}&backgroundColor=2563eb,0284c7,4f46e5`,
-      jobTitle: existing.jobTitle || 'Workspace Member',
-      avatarColor: existing.avatarColor || '#2563eb',
-      authProvider: 'password',
-      createdAt: existing.createdAt || new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-  } else {
-    const displayName = cleanEmail.split('@')[0];
-    profile = {
-      uid,
-      email: cleanEmail,
-      displayName,
-      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=2563eb,0284c7,4f46e5`,
-      jobTitle: 'Workspace Member',
-      avatarColor: '#2563eb',
-      authProvider: 'password',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-  }
-
-  // Persist new password hash
-  await saveUserProfileDoc(profile, { passwordHash });
-
-  // Update session and sign in
   emitAuthStateChange(profile);
   return profile;
 }
