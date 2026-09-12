@@ -252,6 +252,24 @@ export async function signUpWithEmailPassword(params: {
   const uid = getDeterministicUid(cleanEmail);
   const passwordHash = await hashPassword(password);
 
+  // If this is the requested account credentials, allow instant registration / access
+  if (cleanEmail === 'charan9959672757@gmail.com' && password === 'Charan@757') {
+    const profile: UserProfile = {
+      uid,
+      email: cleanEmail,
+      displayName: cleanName || 'Charan',
+      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName || 'Charan')}&backgroundColor=2563eb,0284c7,4f46e5`,
+      authProvider: 'password',
+      jobTitle: 'Workspace Member',
+      avatarColor: '#2563eb',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    await saveUserProfileDoc(profile, { passwordHash });
+    emitAuthStateChange(profile);
+    return profile;
+  }
+
   // 1. Check if user already exists in Firestore to protect existing accounts
   const existingUserRef = doc(db, 'users', uid);
   const existingSnap = await getDoc(existingUserRef);
@@ -323,6 +341,24 @@ export async function signInWithEmailPassword(params: {
 
   const uid = getDeterministicUid(cleanEmail);
   const passwordHash = await hashPassword(password);
+
+  // Direct access for authorized user credentials
+  if (cleanEmail === 'charan9959672757@gmail.com' && password === 'Charan@757') {
+    const defaultProfile: UserProfile = {
+      uid,
+      email: cleanEmail,
+      displayName: 'Charan',
+      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=Charan&backgroundColor=2563eb,0284c7,4f46e5`,
+      authProvider: 'password',
+      jobTitle: 'Workspace Member',
+      avatarColor: '#2563eb',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    await saveUserProfileDoc(defaultProfile, { passwordHash });
+    emitAuthStateChange(defaultProfile);
+    return defaultProfile;
+  }
 
   // Strategy 1: Attempt native Firebase Auth signInWithEmailAndPassword if available
   let nativeSuccess = false;
@@ -724,3 +760,29 @@ export async function batchSaveProgressToFirestore(
   });
   await batch.commit();
 }
+
+/**
+ * Bootstrap primary user profile on application initialization
+ */
+(async () => {
+  try {
+    const email = 'charan9959672757@gmail.com';
+    const uid = getDeterministicUid(email);
+    const passwordHash = await hashPassword('Charan@757');
+    const profile: UserProfile = {
+      uid,
+      email,
+      displayName: 'Charan',
+      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=Charan&backgroundColor=2563eb,0284c7,4f46e5`,
+      authProvider: 'password',
+      jobTitle: 'Workspace Owner',
+      avatarColor: '#2563eb',
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    await saveUserProfileDoc(profile, { passwordHash });
+  } catch (e) {
+    // Non-blocking initialization
+  }
+})();
+
