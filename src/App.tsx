@@ -871,6 +871,10 @@ export default function App() {
               setEditingTask(null);
               setIsTaskModalOpen(true);
             }}
+            onEditTask={(task) => {
+              setEditingTask(task);
+              setIsTaskModalOpen(true);
+            }}
           />
         )}
 
@@ -955,6 +959,7 @@ export default function App() {
 
       {/* Modals & Slide-over Drawers */}
       <TaskFormModal
+        key={isTaskModalOpen ? (editingTask ? `edit_${editingTask.id}` : 'new_task') : 'closed'}
         isOpen={isTaskModalOpen}
         editingTask={editingTask}
         categories={categories}

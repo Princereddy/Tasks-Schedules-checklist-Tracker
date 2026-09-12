@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Clock, 
@@ -43,22 +43,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [endTime, setEndTime] = useState(editingTask?.defaultEndTime || '10:00');
   
   // Separate timings per weekday
-  const hasExistingCustomTimes = Boolean(
-    editingTask?.customDayTimes && Object.keys(editingTask.customDayTimes).length > 0
+  const [useSeparateDayTimings, setUseSeparateDayTimings] = useState<boolean>(
+    Boolean(editingTask?.customDayTimes && Object.keys(editingTask.customDayTimes).length > 0)
   );
-  const [useSeparateDayTimings, setUseSeparateDayTimings] = useState<boolean>(hasExistingCustomTimes);
-  const [customDayTimes, setCustomDayTimes] = useState<Record<number, { startTime: string; endTime: string }>>(() => {
-    if (editingTask?.customDayTimes && Object.keys(editingTask.customDayTimes).length > 0) {
-      return { ...editingTask.customDayTimes };
-    }
-    const initial: Record<number, { startTime: string; endTime: string }> = {};
-    const baseStart = editingTask?.defaultStartTime || '09:00';
-    const baseEnd = editingTask?.defaultEndTime || '10:00';
-    (editingTask?.activeWeekdays || [0, 1, 2, 3, 4, 5, 6]).forEach((d) => {
-      initial[d] = { startTime: baseStart, endTime: baseEnd };
-    });
-    return initial;
-  });
+  const [customDayTimes, setCustomDayTimes] = useState<Record<number, { startTime: string; endTime: string }>>({});
 
   // Reminders
   const [reminderEnabled, setReminderEnabled] = useState(editingTask?.reminderEnabled ?? true);
@@ -71,6 +59,63 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     editingTask?.subtasks || []
   );
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+
+  // Sync state whenever editingTask changes or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (editingTask) {
+        setTitle(editingTask.title || '');
+        setDescription(editingTask.description || '');
+        setCategoryId(editingTask.categoryId || categories[0]?.id || 'cat_work');
+        setPriority(editingTask.priority || 'medium');
+        
+        const weekdays = editingTask.activeWeekdays?.length ? [...editingTask.activeWeekdays] : [0, 1, 2, 3, 4, 5, 6];
+        setActiveWeekdays(weekdays);
+        
+        const baseStart = editingTask.defaultStartTime || '09:00';
+        const baseEnd = editingTask.defaultEndTime || '10:00';
+        setStartTime(baseStart);
+        setEndTime(baseEnd);
+
+        const hasCustom = Boolean(editingTask.customDayTimes && Object.keys(editingTask.customDayTimes).length > 0);
+        setUseSeparateDayTimings(hasCustom);
+
+        if (hasCustom && editingTask.customDayTimes) {
+          setCustomDayTimes({ ...editingTask.customDayTimes });
+        } else {
+          const initial: Record<number, { startTime: string; endTime: string }> = {};
+          weekdays.forEach((d) => {
+            initial[d] = { startTime: baseStart, endTime: baseEnd };
+          });
+          setCustomDayTimes(initial);
+        }
+
+        setReminderEnabled(editingTask.reminderEnabled ?? true);
+        setReminderMinutesBefore(editingTask.reminderMinutesBefore ?? 10);
+        setSubtasks(editingTask.subtasks ? editingTask.subtasks.map((s) => ({ ...s })) : []);
+        setNewSubtaskTitle('');
+      } else {
+        // Reset to fresh creation state
+        setTitle('');
+        setDescription('');
+        setCategoryId(categories[0]?.id || 'cat_work');
+        setPriority('medium');
+        setActiveWeekdays([0, 1, 2, 3, 4, 5, 6]);
+        setStartTime('09:00');
+        setEndTime('10:00');
+        setUseSeparateDayTimings(false);
+        const initial: Record<number, { startTime: string; endTime: string }> = {};
+        [0, 1, 2, 3, 4, 5, 6].forEach((d) => {
+          initial[d] = { startTime: '09:00', endTime: '10:00' };
+        });
+        setCustomDayTimes(initial);
+        setReminderEnabled(true);
+        setReminderMinutesBefore(10);
+        setSubtasks([]);
+        setNewSubtaskTitle('');
+      }
+    }
+  }, [isOpen, editingTask, categories]);
 
   if (!isOpen) return null;
 

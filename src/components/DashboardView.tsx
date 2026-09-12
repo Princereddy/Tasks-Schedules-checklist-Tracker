@@ -9,7 +9,8 @@ import {
   Plus, 
   Flame, 
   CheckSquare,
-  AlertCircle
+  AlertCircle,
+  Edit3
 } from 'lucide-react';
 import { TaskCategory, TaskDailyProgress, TaskItem, TaskPriority, TaskStatus } from '../types';
 import { StatsCharts } from './StatsCharts';
@@ -34,6 +35,7 @@ interface DashboardViewProps {
   onUpdateStatus: (taskId: string, status: TaskStatus) => void;
   onGoToChecklistTab: () => void;
   onOpenNewTaskModal: () => void;
+  onEditTask?: (task: TaskItem) => void;
 }
 
 const PRIORITY_WEIGHT: Record<TaskPriority, number> = {
@@ -64,6 +66,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onUpdateStatus,
   onGoToChecklistTab,
   onOpenNewTaskModal,
+  onEditTask,
 }) => {
   const dateKey = formatDateKey(selectedYear, selectedMonth, selectedDay);
   const dayOfWeek = getDayOfWeek(selectedYear, selectedMonth, selectedDay);
@@ -268,16 +271,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Status Badge */}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex-shrink-0 ${
-                    isCompleted
-                      ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                      : status === 'in-progress'
-                      ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                  }`}>
-                    {status.toUpperCase()}
-                  </span>
+                  {/* Status Badge & Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {onEditTask && (
+                      <button
+                        onClick={() => onEditTask(task)}
+                        title="Edit Task"
+                        className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors opacity-80 group-hover:opacity-100"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border flex-shrink-0 ${
+                      isCompleted
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                        : status === 'in-progress'
+                        ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                    }`}>
+                      {status.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
               );
             })}
