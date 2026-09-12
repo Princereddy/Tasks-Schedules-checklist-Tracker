@@ -636,16 +636,15 @@ export async function ensureUserDataInitialized(
 ): Promise<{ tasks: TaskItem[]; progress: Record<string, TaskDailyProgress>; profile: UserProfile | null }> {
   const profile = await fetchUserFirestoreProfile(userId);
   
-  // Identify all candidate IDs to guarantee zero task loss across login strategies
+  // Identify all candidate IDs belonging exclusively to this specific user
   const candidateIds = new Set<string>();
   candidateIds.add(userId);
   if (profile?.email) {
     candidateIds.add(getDeterministicUid(profile.email));
   }
-  if (auth.currentUser?.uid) {
+  // Only check native firebase auth UID if the email strictly matches this user's email
+  if (auth.currentUser?.email && profile?.email && auth.currentUser.email.toLowerCase() === profile.email.toLowerCase()) {
     candidateIds.add(auth.currentUser.uid);
-  }
-  if (auth.currentUser?.email) {
     candidateIds.add(getDeterministicUid(auth.currentUser.email));
   }
 

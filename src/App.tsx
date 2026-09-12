@@ -105,10 +105,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'checklist' | 'matrix' | 'manage'>('dashboard');
 
   // Core data state
-  const [tasks, setTasks] = useState<TaskItem[]>(() => loadTasksFromStorage());
-  const [progress, setProgress] = useState<Record<string, TaskDailyProgress>>(() => loadProgressFromStorage());
-  const [categories] = useState<TaskCategory[]>(() => loadCategoriesFromStorage());
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadNotificationsFromStorage());
+  const [tasks, setTasks] = useState<TaskItem[]>(() => loadTasksFromStorage(currentUser?.uid));
+  const [progress, setProgress] = useState<Record<string, TaskDailyProgress>>(() => loadProgressFromStorage(currentUser?.uid));
+  const [categories] = useState<TaskCategory[]>(() => loadCategoriesFromStorage(currentUser?.uid));
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadNotificationsFromStorage(currentUser?.uid));
 
   // UI modal toggles
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -139,8 +139,8 @@ export default function App() {
           const cloudData = await ensureUserDataInitialized(user.uid);
           setTasks(cloudData.tasks);
           setProgress(cloudData.progress);
-          saveTasksToStorage(cloudData.tasks);
-          saveProgressToStorage(cloudData.progress);
+          saveTasksToStorage(cloudData.tasks, user.uid);
+          saveProgressToStorage(cloudData.progress, user.uid);
           if (cloudData.profile) {
             setCurrentUser((prev) => ({
               ...(prev || user),
@@ -156,22 +156,24 @@ export default function App() {
           setSyncStatus('synced');
           setTimeout(() => setSyncStatus((s) => (s === 'synced' ? 'idle' : s)), 2000);
 
-          // Real-time listener for tasks
+          // Real-time listener for tasks strictly isolated to this user's cloud partition
           unsubTasksRef.current = subscribeToUserTasks(user.uid, (updatedTasks) => {
             setTasks(updatedTasks);
+            saveTasksToStorage(updatedTasks, user.uid);
             setLastSyncedAt(new Date());
           });
 
-          // Real-time listener for daily progress
+          // Real-time listener for daily progress strictly isolated to this user's cloud partition
           unsubProgressRef.current = subscribeToUserProgress(user.uid, (updatedProgress) => {
             setProgress(updatedProgress);
+            saveProgressToStorage(updatedProgress, user.uid);
             setLastSyncedAt(new Date());
           });
 
           // Add welcome sync notification
           const notif = notificationService.createNotification(
             '☁️ Cloud Firestore Connected',
-            `Signed in as ${user.email}. All tasks and habits auto-sync to your personal Firestore database.`,
+            `Signed in as ${user.email}. You are in your dedicated private workspace.`,
             'info'
           );
           setNotifications((prev) => [notif, ...prev]);
@@ -187,9 +189,10 @@ export default function App() {
           setCurrentUser(null);
           setCustomDisplayName(null);
           setSyncStatus('idle');
-          // On logout, fallback to local storage
-          setTasks(loadTasksFromStorage());
-          setProgress(loadProgressFromStorage());
+          // On logout, clear workspace states
+          setTasks([]);
+          setProgress({});
+          setNotifications([]);
         }
       }
       setIsAuthInitializing(false);
@@ -216,18 +219,24 @@ export default function App() {
     }
   }, []);
 
-  // Sync state to localStorage (offline safety cache)
+  // Sync state to localStorage (user-partitioned offline cache)
   useEffect(() => {
-    saveTasksToStorage(tasks);
-  }, [tasks]);
+    if (currentUser?.uid) {
+      saveTasksToStorage(tasks, currentUser.uid);
+    }
+  }, [tasks, currentUser?.uid]);
 
   useEffect(() => {
-    saveProgressToStorage(progress);
-  }, [progress]);
+    if (currentUser?.uid) {
+      saveProgressToStorage(progress, currentUser.uid);
+    }
+  }, [progress, currentUser?.uid]);
 
   useEffect(() => {
-    saveNotificationsToStorage(notifications);
-  }, [notifications]);
+    if (currentUser?.uid) {
+      saveNotificationsToStorage(notifications, currentUser.uid);
+    }
+  }, [notifications, currentUser?.uid]);
 
   // Handle month boundary when changing year/month
   useEffect(() => {
@@ -400,15 +409,26 @@ export default function App() {
     setIsAuthModalOpen(false);
     soundFx.playClickBeep();
 
-    // 2. Clear local storage & reset memory states immediately to show login screen
-    clearAllLocalStorage();
+    // 2. Unsubscribe any active real-time listeners
+    if (unsubTasksRef.current) {
+      unsubTasksRef.current();
+      unsubTasksRef.current = null;
+    }
+    if (unsubProgressRef.current) {
+      unsubProgressRef.current();
+      unsubProgressRef.current = null;
+    }
+
+    // 3. Clear local storage & reset memory states immediately to show login screen
+    const uidToClear = currentUser?.uid;
+    clearAllLocalStorage(uidToClear);
     setCurrentUser(null);
     setCustomDisplayName(null);
     setTasks([]);
     setProgress({});
     setNotifications([]);
 
-    // 3. Cleanly terminate session
+    // 4. Cleanly terminate session
     try {
       await logoutUser();
     } catch (err) {
