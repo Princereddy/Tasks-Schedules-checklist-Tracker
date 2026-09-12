@@ -155,7 +155,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {todayTasks.slice(0, 5).map((task) => {
+            {todayTasks.map((task) => {
               const taskProg = progress[`${task.id}_${dateKey}`];
               const status: TaskStatus = taskProg?.status || 'pending';
               const isCompleted = status === 'completed';

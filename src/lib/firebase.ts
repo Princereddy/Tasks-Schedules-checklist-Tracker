@@ -144,12 +144,19 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
   // Also bridge with Firebase Auth native observer
   const unsubFirebase = onAuthStateChanged(auth, async (firebaseUser) => {
     if (firebaseUser) {
+      const canonicalUid = firebaseUser.email ? getDeterministicUid(firebaseUser.email) : firebaseUser.uid;
+      const existingProfile = await fetchUserFirestoreProfile(canonicalUid);
+      const effectiveDisplayName = existingProfile?.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User';
       const profile: UserProfile = {
-        uid: firebaseUser.uid,
+        uid: canonicalUid,
         email: firebaseUser.email,
-        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-        photoURL: firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(firebaseUser.displayName || firebaseUser.email || 'User')}&backgroundColor=2563eb,0284c7,4f46e5`,
-        authProvider: 'password',
+        displayName: effectiveDisplayName,
+        photoURL: existingProfile?.photoURL || firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(effectiveDisplayName)}&backgroundColor=2563eb,0284c7,4f46e5`,
+        authProvider: existingProfile?.authProvider || 'password',
+        jobTitle: existingProfile?.jobTitle || 'Workspace Member',
+        avatarColor: existingProfile?.avatarColor || '#2563eb',
+        createdAt: existingProfile?.createdAt || new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
       };
       await saveUserProfileDoc(profile);
       emitAuthStateChange(profile);
@@ -542,12 +549,13 @@ export async function logoutUser(): Promise<void> {
  */
 export function formatUserProfile(user: User | null): UserProfile | null {
   if (!user) return null;
+  const canonicalUid = user.email ? getDeterministicUid(user.email) : user.uid;
   return {
-    uid: user.uid,
+    uid: canonicalUid,
     email: user.email,
     displayName: user.displayName,
     photoURL: user.photoURL,
-    authProvider: 'google.com',
+    authProvider: 'password',
   };
 }
 
@@ -560,7 +568,7 @@ export async function updateUserDisplayName(newName: string, currentUid?: string
     throw new Error('Name cannot be empty.');
   }
 
-  const effectiveUid = currentUid || auth.currentUser?.uid || cachedUserProfile?.uid || getStoredUserProfile()?.uid;
+  const effectiveUid = currentUid || (auth.currentUser?.email ? getDeterministicUid(auth.currentUser.email) : auth.currentUser?.uid) || cachedUserProfile?.uid || getStoredUserProfile()?.uid;
   if (!effectiveUid) {
     throw new Error('No user is currently signed in.');
   }
@@ -619,7 +627,7 @@ export async function fetchUserFirestoreProfile(userId: string): Promise<UserPro
 }
 
 /**
- * Initialize user data on Firestore if first time login
+ * Initialize user data on Firestore if first time login, merging any tasks across candidate user IDs
  */
 export async function ensureUserDataInitialized(
   userId: string, 
@@ -627,33 +635,64 @@ export async function ensureUserDataInitialized(
   currentLocalProgress?: Record<string, TaskDailyProgress>
 ): Promise<{ tasks: TaskItem[]; progress: Record<string, TaskDailyProgress>; profile: UserProfile | null }> {
   const profile = await fetchUserFirestoreProfile(userId);
-  const tasksColRef = collection(db, 'users', userId, 'tasks');
-  const tasksSnap = await getDocs(tasksColRef);
-
-  let initialTasksToUse: TaskItem[] = [];
-  let initialProgressToUse: Record<string, TaskDailyProgress> = {};
-
-  if (tasksSnap.empty) {
-    // New user in Firestore: Start completely fresh with NO demo data
-    return { tasks: [], progress: {}, profile };
-  } else {
-    // User already has tasks in cloud
-    const loadedTasks: TaskItem[] = [];
-    tasksSnap.forEach((docSnap) => {
-      loadedTasks.push(docSnap.data() as TaskItem);
-    });
-
-    const progressColRef = collection(db, 'users', userId, 'progress');
-    const progressSnap = await getDocs(progressColRef);
-    const loadedProgress: Record<string, TaskDailyProgress> = {};
-    progressSnap.forEach((docSnap) => {
-      const data = docSnap.data() as TaskDailyProgress;
-      const key = `${data.taskId}_${data.dateKey}`;
-      loadedProgress[key] = data;
-    });
-
-    return { tasks: loadedTasks, progress: loadedProgress, profile };
+  
+  // Identify all candidate IDs to guarantee zero task loss across login strategies
+  const candidateIds = new Set<string>();
+  candidateIds.add(userId);
+  if (profile?.email) {
+    candidateIds.add(getDeterministicUid(profile.email));
   }
+  if (auth.currentUser?.uid) {
+    candidateIds.add(auth.currentUser.uid);
+  }
+  if (auth.currentUser?.email) {
+    candidateIds.add(getDeterministicUid(auth.currentUser.email));
+  }
+
+  const tasksMap: Record<string, TaskItem> = {};
+  const progressMap: Record<string, TaskDailyProgress> = {};
+
+  // Fetch tasks and progress across all candidate paths
+  for (const cid of candidateIds) {
+    try {
+      const tasksCol = collection(db, 'users', cid, 'tasks');
+      const tSnap = await getDocs(tasksCol);
+      tSnap.forEach((docSnap) => {
+        const item = docSnap.data() as TaskItem;
+        if (item && item.id) {
+          tasksMap[item.id] = { ...tasksMap[item.id], ...item };
+        }
+      });
+
+      const progCol = collection(db, 'users', cid, 'progress');
+      const pSnap = await getDocs(progCol);
+      pSnap.forEach((docSnap) => {
+        const data = docSnap.data() as TaskDailyProgress;
+        if (data && data.taskId && data.dateKey) {
+          const key = `${data.taskId}_${data.dateKey}`;
+          progressMap[key] = { ...progressMap[key], ...data };
+        }
+      });
+    } catch (err) {
+      console.warn(`Candidate fetch notice for ${cid}:`, err);
+    }
+  }
+
+  const loadedTasks = Object.values(tasksMap);
+
+  // If tasks were found in an alternate candidate UID, ensure they are mirrored into primary userId
+  if (loadedTasks.length > 0) {
+    try {
+      await batchSaveTasksToFirestore(userId, loadedTasks);
+      if (Object.keys(progressMap).length > 0) {
+        await batchSaveProgressToFirestore(userId, progressMap);
+      }
+    } catch (e) {
+      console.warn('Sync mirror notice:', e);
+    }
+  }
+
+  return { tasks: loadedTasks, progress: progressMap, profile };
 }
 
 /**

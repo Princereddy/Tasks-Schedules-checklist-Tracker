@@ -33,9 +33,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [categoryId, setCategoryId] = useState(editingTask?.categoryId || categories[0]?.id || 'cat_work');
   const [priority, setPriority] = useState<TaskPriority>(editingTask?.priority || 'medium');
   
-  // Weekday selection
+  // Weekday selection (Default to all 7 days for maximum visibility)
   const [activeWeekdays, setActiveWeekdays] = useState<number[]>(
-    editingTask?.activeWeekdays || [1, 2, 3, 4, 5]
+    editingTask?.activeWeekdays || [0, 1, 2, 3, 4, 5, 6]
   );
 
   // Timings
@@ -54,7 +54,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const initial: Record<number, { startTime: string; endTime: string }> = {};
     const baseStart = editingTask?.defaultStartTime || '09:00';
     const baseEnd = editingTask?.defaultEndTime || '10:00';
-    (editingTask?.activeWeekdays || [1, 2, 3, 4, 5]).forEach((d) => {
+    (editingTask?.activeWeekdays || [0, 1, 2, 3, 4, 5, 6]).forEach((d) => {
       initial[d] = { startTime: baseStart, endTime: baseEnd };
     });
     return initial;
