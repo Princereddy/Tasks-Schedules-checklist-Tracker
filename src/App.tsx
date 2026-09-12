@@ -141,8 +141,14 @@ export default function App() {
           setProgress(cloudData.progress);
           saveTasksToStorage(cloudData.tasks);
           saveProgressToStorage(cloudData.progress);
-          if (cloudData.profile?.displayName) {
-            setCustomDisplayName(cloudData.profile.displayName);
+          if (cloudData.profile) {
+            setCurrentUser((prev) => ({
+              ...(prev || user),
+              ...cloudData.profile!,
+            }));
+            if (cloudData.profile.displayName) {
+              setCustomDisplayName(cloudData.profile.displayName);
+            }
           } else if (user.displayName) {
             setCustomDisplayName(user.displayName);
           }
@@ -475,8 +481,11 @@ export default function App() {
       setProgress(cloudData.progress);
       saveTasksToStorage(cloudData.tasks);
       saveProgressToStorage(cloudData.progress);
-      if (cloudData.profile?.displayName) {
-        setCustomDisplayName(cloudData.profile.displayName);
+      if (cloudData.profile) {
+        setCurrentUser((prev) => (prev ? { ...prev, ...cloudData.profile! } : cloudData.profile));
+        if (cloudData.profile.displayName) {
+          setCustomDisplayName(cloudData.profile.displayName);
+        }
       }
     });
   };

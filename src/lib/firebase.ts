@@ -195,15 +195,18 @@ export async function saveUserProfileDoc(profile: UserProfile, extraFields: Reco
       });
     } else {
       const existingData = existingSnap.data() || {};
-      await setDoc(userRef, {
+      const payload: Record<string, any> = {
         lastLoginAt: nowIso,
-        displayName: profile.displayName || existingData.displayName,
-        email: profile.email || existingData.email,
-        photoURL: profile.photoURL || existingData.photoURL,
-        jobTitle: profile.jobTitle || existingData.jobTitle,
-        avatarColor: profile.avatarColor || existingData.avatarColor,
         ...extraFields,
-      }, { merge: true });
+      };
+      if (profile.displayName !== undefined && profile.displayName !== null) payload.displayName = profile.displayName;
+      if (profile.email !== undefined && profile.email !== null) payload.email = profile.email;
+      if (profile.photoURL !== undefined && profile.photoURL !== null) payload.photoURL = profile.photoURL;
+      if (profile.jobTitle !== undefined && profile.jobTitle !== null) payload.jobTitle = profile.jobTitle;
+      if (profile.avatarColor !== undefined && profile.avatarColor !== null) payload.avatarColor = profile.avatarColor;
+      if (profile.authProvider !== undefined && profile.authProvider !== null) payload.authProvider = profile.authProvider;
+
+      await setDoc(userRef, payload, { merge: true });
     }
   } catch (err) {
     console.warn('Could not save user profile record to Firestore:', err);
@@ -342,24 +345,6 @@ export async function signInWithEmailPassword(params: {
   const uid = getDeterministicUid(cleanEmail);
   const passwordHash = await hashPassword(password);
 
-  // Direct access for authorized user credentials
-  if (cleanEmail === 'charan9959672757@gmail.com' && password === 'Charan@757') {
-    const defaultProfile: UserProfile = {
-      uid,
-      email: cleanEmail,
-      displayName: 'Charan',
-      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=Charan&backgroundColor=2563eb,0284c7,4f46e5`,
-      authProvider: 'password',
-      jobTitle: 'Workspace Member',
-      avatarColor: '#2563eb',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-    await saveUserProfileDoc(defaultProfile, { passwordHash });
-    emitAuthStateChange(defaultProfile);
-    return defaultProfile;
-  }
-
   // Strategy 1: Attempt native Firebase Auth signInWithEmailAndPassword if available
   let nativeSuccess = false;
   try {
@@ -368,12 +353,7 @@ export async function signInWithEmailPassword(params: {
       nativeSuccess = true;
     }
   } catch (fbErr: any) {
-    const code = fbErr?.code || '';
-    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-      // Check firestore hash below before concluding
-    } else if (code === 'auth/user-not-found') {
-      // Check firestore below before concluding
-    }
+    // Non-blocking fallback to Firestore hash check
   }
 
   // Strategy 2: Check Firestore record to verify user registration and password hash
@@ -392,6 +372,26 @@ export async function signInWithEmailPassword(params: {
     } catch (e) {
       // Query fallback
     }
+  }
+
+  // If this is the authorized credentials for charan9959672757@gmail.com, allow login and preserve all saved profile fields
+  if (cleanEmail === 'charan9959672757@gmail.com' && password === 'Charan@757') {
+    const existingData = userSnap.exists() ? userSnap.data() : {};
+    const effectiveDisplayName = existingData?.displayName || 'Charan';
+    const profile: UserProfile = {
+      uid: userSnap.exists() ? userSnap.id : uid,
+      email: cleanEmail,
+      displayName: effectiveDisplayName,
+      photoURL: existingData?.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(effectiveDisplayName)}&backgroundColor=2563eb,0284c7,4f46e5`,
+      authProvider: 'password',
+      jobTitle: existingData?.jobTitle || 'Workspace Owner',
+      avatarColor: existingData?.avatarColor || '#2563eb',
+      createdAt: existingData?.createdAt || new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    await saveUserProfileDoc(profile, { passwordHash });
+    emitAuthStateChange(profile);
+    return profile;
   }
 
   // If user document does NOT exist in Firestore at all: UNREGISTERED USER -> DENY LOGIN
@@ -424,7 +424,7 @@ export async function signInWithEmailPassword(params: {
     lastLoginAt: new Date().toISOString(),
   };
 
-  // Update last login timestamp in Firestore
+  // Update last login timestamp in Firestore without overwriting profile fields
   await saveUserProfileDoc(profile, { passwordHash });
   emitAuthStateChange(profile);
   return profile;
@@ -605,6 +605,9 @@ export async function fetchUserFirestoreProfile(userId: string): Promise<UserPro
         email: data.email || null,
         displayName: data.displayName || null,
         photoURL: data.photoURL || null,
+        authProvider: data.authProvider || 'password',
+        jobTitle: data.jobTitle || 'Workspace Member',
+        avatarColor: data.avatarColor || '#2563eb',
         createdAt: data.createdAt,
         lastLoginAt: data.lastLoginAt,
       };
@@ -666,9 +669,8 @@ export function subscribeToUserTasks(
     snapshot.forEach((docSnap) => {
       items.push(docSnap.data() as TaskItem);
     });
-    if (items.length > 0) {
-      onUpdate(items);
-    }
+    // Always broadcast the updated task list to maintain live parity with Firestore
+    onUpdate(items);
   }, (error) => {
     console.error('Error listening to tasks from Firestore:', error);
   });
@@ -689,24 +691,28 @@ export function subscribeToUserProgress(
       const key = `${data.taskId}_${data.dateKey}`;
       progressMap[key] = data;
     });
-    if (Object.keys(progressMap).length > 0) {
-      onUpdate(progressMap);
-    }
+    // Always broadcast the updated progress map to maintain live parity with Firestore
+    onUpdate(progressMap);
   }, (error) => {
     console.error('Error listening to progress from Firestore:', error);
   });
 }
 
 /**
- * Save single task to Firestore
+ * Save single task to Firestore - Permanent dedicated storage with no limits
  */
 export async function saveTaskToFirestore(userId: string, task: TaskItem): Promise<void> {
   const taskRef = doc(db, 'users', userId, 'tasks', task.id);
-  await setDoc(taskRef, task, { merge: true });
+  const payload = {
+    ...task,
+    userId,
+    updatedAt: new Date().toISOString(),
+  };
+  await setDoc(taskRef, payload, { merge: true });
 }
 
 /**
- * Delete single task from Firestore
+ * Delete single task from Firestore (Manual deletion only)
  */
 export async function deleteTaskFromFirestore(userId: string, taskId: string): Promise<void> {
   const taskRef = doc(db, 'users', userId, 'tasks', taskId);
@@ -718,15 +724,16 @@ export async function deleteTaskFromFirestore(userId: string, taskId: string): P
  */
 export async function batchSaveTasksToFirestore(userId: string, tasks: TaskItem[]): Promise<void> {
   const batch = writeBatch(db);
+  const now = new Date().toISOString();
   tasks.forEach((task) => {
     const taskRef = doc(db, 'users', userId, 'tasks', task.id);
-    batch.set(taskRef, task, { merge: true });
+    batch.set(taskRef, { ...task, userId, updatedAt: now }, { merge: true });
   });
   await batch.commit();
 }
 
 /**
- * Batch delete tasks from Firestore
+ * Batch delete tasks from Firestore (Manual batch deletion only)
  */
 export async function batchDeleteTasksFromFirestore(userId: string, taskIds: string[]): Promise<void> {
   const batch = writeBatch(db);
@@ -743,7 +750,12 @@ export async function batchDeleteTasksFromFirestore(userId: string, taskIds: str
 export async function saveProgressToFirestore(userId: string, progress: TaskDailyProgress): Promise<void> {
   const key = `${progress.taskId}_${progress.dateKey}`;
   const progRef = doc(db, 'users', userId, 'progress', key);
-  await setDoc(progRef, progress, { merge: true });
+  const payload = {
+    ...progress,
+    userId,
+    updatedAt: new Date().toISOString(),
+  };
+  await setDoc(progRef, payload, { merge: true });
 }
 
 /**
@@ -754,35 +766,11 @@ export async function batchSaveProgressToFirestore(
   progressItems: Record<string, TaskDailyProgress>
 ): Promise<void> {
   const batch = writeBatch(db);
+  const now = new Date().toISOString();
   Object.entries(progressItems).forEach(([key, item]) => {
     const progRef = doc(db, 'users', userId, 'progress', key);
-    batch.set(progRef, item, { merge: true });
+    batch.set(progRef, { ...item, userId, updatedAt: now }, { merge: true });
   });
   await batch.commit();
 }
-
-/**
- * Bootstrap primary user profile on application initialization
- */
-(async () => {
-  try {
-    const email = 'charan9959672757@gmail.com';
-    const uid = getDeterministicUid(email);
-    const passwordHash = await hashPassword('Charan@757');
-    const profile: UserProfile = {
-      uid,
-      email,
-      displayName: 'Charan',
-      photoURL: `https://api.dicebear.com/7.x/initials/svg?seed=Charan&backgroundColor=2563eb,0284c7,4f46e5`,
-      authProvider: 'password',
-      jobTitle: 'Workspace Owner',
-      avatarColor: '#2563eb',
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString(),
-    };
-    await saveUserProfileDoc(profile, { passwordHash });
-  } catch (e) {
-    // Non-blocking initialization
-  }
-})();
 
