@@ -32,7 +32,13 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { TaskItem, TaskDailyProgress, TaskCategory, UserProfile } from '../types';
-import { INITIAL_TASKS, DEFAULT_CATEGORIES, getInitialProgress } from '../utils/storage';
+import { 
+  INITIAL_TASKS, 
+  DEFAULT_CATEGORIES, 
+  getInitialProgress,
+  loadTasksFromStorage,
+  loadProgressFromStorage 
+} from '../utils/storage';
 
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -627,7 +633,31 @@ export async function fetchUserFirestoreProfile(userId: string): Promise<UserPro
 }
 
 /**
- * Initialize user data on Firestore if first time login, merging any tasks across candidate user IDs
+ * Deeply clean object for Firestore to remove any `undefined` values that cause Firestore exceptions
+ */
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => sanitizeForFirestore(item)) as any;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const clean: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v !== undefined) {
+        clean[k] = sanitizeForFirestore(v);
+      }
+    }
+    return clean as any;
+  }
+  return data;
+}
+
+/**
+ * Initialize user data on Firestore if first time login, merging any tasks across candidate user IDs and local storage
  */
 export async function ensureUserDataInitialized(
   userId: string, 
@@ -677,9 +707,29 @@ export async function ensureUserDataInitialized(
     }
   }
 
+  // Merge any local tasks cached for this user
+  const cachedLocal = currentLocalTasks || loadTasksFromStorage(userId);
+  if (cachedLocal && cachedLocal.length > 0) {
+    cachedLocal.forEach((t) => {
+      if (t && t.id && !tasksMap[t.id]) {
+        tasksMap[t.id] = t;
+      }
+    });
+  }
+
+  const cachedProg = currentLocalProgress || loadProgressFromStorage(userId);
+  if (cachedProg && Object.keys(cachedProg).length > 0) {
+    Object.entries(cachedProg).forEach(([key, val]) => {
+      const p = val as TaskDailyProgress;
+      if (p && p.taskId && p.dateKey && !progressMap[key]) {
+        progressMap[key] = p;
+      }
+    });
+  }
+
   const loadedTasks = Object.values(tasksMap);
 
-  // If tasks were found in an alternate candidate UID, ensure they are mirrored into primary userId
+  // If tasks were found, ensure they are actively synced/mirrored to primary Firestore userId
   if (loadedTasks.length > 0) {
     try {
       await batchSaveTasksToFirestore(userId, loadedTasks);
@@ -740,12 +790,13 @@ export function subscribeToUserProgress(
  * Save single task to Firestore - Permanent dedicated storage with no limits
  */
 export async function saveTaskToFirestore(userId: string, task: TaskItem): Promise<void> {
+  if (!userId || !task || !task.id) return;
   const taskRef = doc(db, 'users', userId, 'tasks', task.id);
-  const payload = {
+  const payload = sanitizeForFirestore({
     ...task,
     userId,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(taskRef, payload, { merge: true });
 }
 
@@ -753,6 +804,7 @@ export async function saveTaskToFirestore(userId: string, task: TaskItem): Promi
  * Delete single task from Firestore (Manual deletion only)
  */
 export async function deleteTaskFromFirestore(userId: string, taskId: string): Promise<void> {
+  if (!userId || !taskId) return;
   const taskRef = doc(db, 'users', userId, 'tasks', taskId);
   await deleteDoc(taskRef);
 }
@@ -761,11 +813,18 @@ export async function deleteTaskFromFirestore(userId: string, taskId: string): P
  * Batch update tasks in Firestore
  */
 export async function batchSaveTasksToFirestore(userId: string, tasks: TaskItem[]): Promise<void> {
+  if (!userId || !tasks || tasks.length === 0) return;
   const batch = writeBatch(db);
   const now = new Date().toISOString();
   tasks.forEach((task) => {
+    if (!task || !task.id) return;
     const taskRef = doc(db, 'users', userId, 'tasks', task.id);
-    batch.set(taskRef, { ...task, userId, updatedAt: now }, { merge: true });
+    const payload = sanitizeForFirestore({
+      ...task,
+      userId,
+      updatedAt: now,
+    });
+    batch.set(taskRef, payload, { merge: true });
   });
   await batch.commit();
 }
@@ -774,8 +833,10 @@ export async function batchSaveTasksToFirestore(userId: string, tasks: TaskItem[
  * Batch delete tasks from Firestore (Manual batch deletion only)
  */
 export async function batchDeleteTasksFromFirestore(userId: string, taskIds: string[]): Promise<void> {
+  if (!userId || !taskIds || taskIds.length === 0) return;
   const batch = writeBatch(db);
   taskIds.forEach((id) => {
+    if (!id) return;
     const taskRef = doc(db, 'users', userId, 'tasks', id);
     batch.delete(taskRef);
   });
@@ -786,13 +847,14 @@ export async function batchDeleteTasksFromFirestore(userId: string, taskIds: str
  * Save progress record to Firestore
  */
 export async function saveProgressToFirestore(userId: string, progress: TaskDailyProgress): Promise<void> {
+  if (!userId || !progress || !progress.taskId || !progress.dateKey) return;
   const key = `${progress.taskId}_${progress.dateKey}`;
   const progRef = doc(db, 'users', userId, 'progress', key);
-  const payload = {
+  const payload = sanitizeForFirestore({
     ...progress,
     userId,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(progRef, payload, { merge: true });
 }
 
@@ -803,11 +865,20 @@ export async function batchSaveProgressToFirestore(
   userId: string, 
   progressItems: Record<string, TaskDailyProgress>
 ): Promise<void> {
+  if (!userId || !progressItems) return;
+  const entries = Object.entries(progressItems);
+  if (entries.length === 0) return;
   const batch = writeBatch(db);
   const now = new Date().toISOString();
-  Object.entries(progressItems).forEach(([key, item]) => {
+  entries.forEach(([key, item]) => {
+    if (!item || !item.taskId || !item.dateKey) return;
     const progRef = doc(db, 'users', userId, 'progress', key);
-    batch.set(progRef, { ...item, userId, updatedAt: now }, { merge: true });
+    const payload = sanitizeForFirestore({
+      ...item,
+      userId,
+      updatedAt: now,
+    });
+    batch.set(progRef, payload, { merge: true });
   });
   await batch.commit();
 }

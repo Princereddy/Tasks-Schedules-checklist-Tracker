@@ -135,8 +135,10 @@ export default function App() {
         setIsSyncing(true);
         setSyncStatus('saving');
         try {
-          // Initialize user's personal cloud partition in Firestore (no demo data for new users)
-          const cloudData = await ensureUserDataInitialized(user.uid);
+          // Initialize user's personal cloud partition in Firestore (merge cached tasks seamlessly)
+          const localTasks = loadTasksFromStorage(user.uid);
+          const localProg = loadProgressFromStorage(user.uid);
+          const cloudData = await ensureUserDataInitialized(user.uid, localTasks, localProg);
           setTasks(cloudData.tasks);
           setProgress(cloudData.progress);
           saveTasksToStorage(cloudData.tasks, user.uid);
@@ -496,11 +498,11 @@ export default function App() {
   const handleManualSync = async () => {
     if (!currentUser) return;
     await triggerAutoSync(async () => {
-      const cloudData = await ensureUserDataInitialized(currentUser.uid);
+      const cloudData = await ensureUserDataInitialized(currentUser.uid, tasks, progress);
       setTasks(cloudData.tasks);
       setProgress(cloudData.progress);
-      saveTasksToStorage(cloudData.tasks);
-      saveProgressToStorage(cloudData.progress);
+      saveTasksToStorage(cloudData.tasks, currentUser.uid);
+      saveProgressToStorage(cloudData.progress, currentUser.uid);
       if (cloudData.profile) {
         setCurrentUser((prev) => (prev ? { ...prev, ...cloudData.profile! } : cloudData.profile));
         if (cloudData.profile.displayName) {
