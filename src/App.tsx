@@ -56,6 +56,7 @@ import {
   auth,
   signInWithEmailPassword,
   signUpWithEmailPassword,
+  resetPasswordWithEmail,
   updateUserProfileData,
   logoutUser,
   onAppAuthStateChanged,
@@ -339,6 +340,24 @@ export default function App() {
       const notif = notificationService.createNotification(
         '🎉 Welcome to PLANVEXA',
         `Account created for ${profile.displayName}! Your personal workspace is ready.`,
+        'info'
+      );
+      setNotifications((prev) => [notif, ...prev]);
+      return profile;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleResetPassword = async (params: { email: string; newPassword: string; confirmPassword?: string }) => {
+    setIsSyncing(true);
+    try {
+      const profile = await resetPasswordWithEmail(params);
+      setCurrentUser(profile);
+      soundFx.playSuccessChime();
+      const notif = notificationService.createNotification(
+        '🔑 Password Reset Successful',
+        `Password updated for ${profile.displayName}! Your workspace is now open.`,
         'info'
       );
       setNotifications((prev) => [notif, ...prev]);
@@ -759,6 +778,7 @@ export default function App() {
       <FullPageLogin
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
+        onResetPassword={handleResetPassword}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);
@@ -944,6 +964,7 @@ export default function App() {
         lastSyncedAt={lastSyncedAt}
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
+        onResetPassword={handleResetPassword}
         onLogout={handleLogout}
         onManualSync={handleManualSync}
         onUpdateProfile={handleUpdateProfile}

@@ -37,6 +37,7 @@ interface AuthModalProps {
   customDisplayName?: string | null;
   onSignIn: (params: { email: string; password: string }) => Promise<UserProfile | void>;
   onSignUp: (params: { email: string; password: string; confirmPassword: string; displayName: string }) => Promise<UserProfile | void>;
+  onResetPassword?: (params: { email: string; newPassword: string; confirmPassword?: string }) => Promise<UserProfile | void>;
   onLogout: () => Promise<void>;
   onManualSync: () => Promise<void>;
   onUpdateProfile: (params: {
@@ -60,13 +61,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   customDisplayName,
   onSignIn,
   onSignUp,
+  onResetPassword,
   onLogout,
   onManualSync,
   onUpdateProfile,
   tasksCount,
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'sync'>('profile');
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   
   // Profile edit fields
   const [nameInput, setNameInput] = useState<string>('');
@@ -212,13 +214,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           confirmPassword: formConfirmPassword,
           displayName: formDisplayName.trim(),
         });
+        setFeedbackSuccess('Account created and signed in successfully!');
+      } else if (authMode === 'reset') {
+        if (cleanPassword !== formConfirmPassword) {
+          setFeedbackError('New passwords do not match.');
+          setIsProcessing(false);
+          return;
+        }
+        if (cleanPassword.length < 6) {
+          setFeedbackError('Password must be at least 6 characters long.');
+          setIsProcessing(false);
+          return;
+        }
+        if (onResetPassword) {
+          await onResetPassword({
+            email: cleanEmail,
+            newPassword: cleanPassword,
+            confirmPassword: formConfirmPassword,
+          });
+        } else {
+          await onSignUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            confirmPassword: formConfirmPassword,
+            displayName: cleanEmail.split('@')[0],
+          });
+        }
+        setFeedbackSuccess('Password reset successfully! Connected to workspace.');
       } else {
         await onSignIn({
           email: cleanEmail,
           password: cleanPassword,
         });
+        setFeedbackSuccess('Signed in successfully!');
       }
-      setFeedbackSuccess('Signed in successfully!');
       soundFx.playSuccessChime();
       onClose();
     } catch (err: any) {
@@ -626,11 +655,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             /* Unauthenticated View: Sign In or Sign Up Form */
             <div>
               {/* Tab Switcher */}
-              <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 mb-5">
+              <div className="grid grid-cols-3 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/60 mb-5 text-center">
                 <button
                   type="button"
-                  onClick={() => setAuthMode('signin')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  onClick={() => { setAuthMode('signin'); setFeedbackError(null); }}
+                  className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     authMode === 'signin'
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -641,8 +670,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setAuthMode('signup')}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  onClick={() => { setAuthMode('signup'); setFeedbackError(null); }}
+                  className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                     authMode === 'signup'
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -651,7 +680,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Create Account</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('reset'); setFeedbackError(null); }}
+                  className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    authMode === 'reset'
+                      ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-700'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Reset Pass</span>
+                </button>
               </div>
+
+              {authMode === 'reset' && (
+                <div className="mb-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300">
+                  Enter your registered Email ID and choose a new password. You'll immediately unlock and connect to your cloud workspace.
+                </div>
+              )}
 
               <form onSubmit={handleAuthSubmit} className="space-y-4">
                 {authMode === 'signup' && (
@@ -693,9 +740,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Password <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      {authMode === 'reset' ? 'New Password' : 'Password'} <span className="text-rose-500">*</span>
+                    </label>
+                    {authMode === 'signin' && (
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode('reset'); setFeedbackError(null); }}
+                        className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                     <input
@@ -717,10 +775,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 </div>
 
-                {authMode === 'signup' && (
+                {(authMode === 'signup' || authMode === 'reset') && (
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Confirm Password <span className="text-rose-500">*</span>
+                      {authMode === 'reset' ? 'Confirm New Password' : 'Confirm Password'} <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <KeyRound className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
@@ -740,16 +798,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   type="submit"
                   disabled={isProcessing}
-                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+                  className={`w-full py-3 px-4 rounded-xl text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 ${
+                    authMode === 'reset'
+                      ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-500/20'
+                      : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/20'
+                  }`}
                 >
                   {isProcessing ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : authMode === 'signup' ? (
                     <UserPlus className="w-4 h-4" />
+                  ) : authMode === 'reset' ? (
+                    <KeyRound className="w-4 h-4" />
                   ) : (
                     <LogIn className="w-4 h-4" />
                   )}
-                  <span>{authMode === 'signup' ? 'Create Account & Access Workspace' : 'Sign In to Workspace'}</span>
+                  <span>
+                    {authMode === 'signup'
+                      ? 'Create Account & Access Workspace'
+                      : authMode === 'reset'
+                      ? 'Set New Password & Open Workspace'
+                      : 'Sign In to Workspace'}
+                  </span>
                 </button>
               </form>
             </div>

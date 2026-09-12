@@ -23,6 +23,7 @@ import { ThemeMode, UserProfile } from '../types';
 interface FullPageLoginProps {
   onSignIn: (params: { email: string; password: string }) => Promise<UserProfile | void>;
   onSignUp: (params: { email: string; password: string; confirmPassword: string; displayName: string }) => Promise<UserProfile | void>;
+  onResetPassword?: (params: { email: string; newPassword: string; confirmPassword?: string }) => Promise<UserProfile | void>;
   themeMode: ThemeMode;
   onThemeChange: (mode: ThemeMode) => void;
 }
@@ -30,10 +31,11 @@ interface FullPageLoginProps {
 export const FullPageLogin: React.FC<FullPageLoginProps> = ({
   onSignIn,
   onSignUp,
+  onResetPassword,
   themeMode,
   onThemeChange,
 }) => {
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'reset'>('signin');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -85,6 +87,11 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
         setErrorMessage('Passwords do not match. Please re-enter your password confirmation.');
         return;
       }
+    } else if (authMode === 'reset') {
+      if (cleanPassword !== confirmPassword) {
+        setErrorMessage('New passwords do not match. Please verify confirmation.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -97,6 +104,21 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
           confirmPassword,
           displayName: cleanName,
         });
+      } else if (authMode === 'reset') {
+        if (onResetPassword) {
+          await onResetPassword({
+            email: cleanEmail,
+            newPassword: cleanPassword,
+            confirmPassword,
+          });
+        } else {
+          await onSignUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            confirmPassword,
+            displayName: cleanEmail.split('@')[0],
+          });
+        }
       } else {
         await onSignIn({
           email: cleanEmail,
@@ -179,8 +201,8 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                     : 'Sign in with your Email ID and Password to open your dashboard.'}
                 </p>
 
-                {/* Tabs: Sign In vs Sign Up */}
-                <div className="mt-5 grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60">
+                {/* Tabs: Sign In vs Sign Up vs Reset Pass */}
+                <div className="mt-5 grid grid-cols-3 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 text-center">
                   <button
                     id="tab-btn-signin"
                     type="button"
@@ -188,7 +210,7 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                       setAuthMode('signin');
                       setErrorMessage(null);
                     }}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       authMode === 'signin'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
@@ -205,17 +227,40 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                       setAuthMode('signup');
                       setErrorMessage(null);
                     }}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                       authMode === 'signup'
                         ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs border border-slate-200 dark:border-slate-700'
                         : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>Create Account</span>
+                    <span>Sign Up</span>
+                  </button>
+
+                  <button
+                    id="tab-btn-reset"
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('reset');
+                      setErrorMessage(null);
+                    }}
+                    className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      authMode === 'reset'
+                        ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs border border-slate-200 dark:border-slate-700'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Reset Pass</span>
                   </button>
                 </div>
               </div>
+
+              {authMode === 'reset' && (
+                <div className="mb-4 p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-900 dark:text-amber-200 text-xs leading-relaxed">
+                  Enter your Email ID and choose a new password. You will immediately update your password and gain instant access to your cloud workspace.
+                </div>
+              )}
 
               {/* Error Notice */}
               {errorMessage && (
@@ -287,8 +332,17 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                       htmlFor="auth-password" 
                       className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
                     >
-                      {authMode === 'signup' ? 'Create Password' : 'Password'} <span className="text-rose-500">*</span>
+                      {authMode === 'reset' ? 'New Password' : 'Password'} <span className="text-rose-500">*</span>
                     </label>
+                    {authMode === 'signin' && (
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode('reset'); setErrorMessage(null); }}
+                        className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
                     {authMode === 'signup' && (
                       <span className="text-[10px] text-slate-500 dark:text-slate-400">
                         Min. 6 chars
@@ -320,14 +374,14 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                   </div>
                 </div>
 
-                {/* Confirm Password (Sign Up Only) */}
-                {authMode === 'signup' && (
+                {/* Confirm Password (Sign Up & Reset) */}
+                {(authMode === 'signup' || authMode === 'reset') && (
                   <div>
                     <label 
                       htmlFor="signup-confirm-password" 
                       className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                     >
-                      Confirm Password <span className="text-rose-500">*</span>
+                      {authMode === 'reset' ? 'Confirm New Password' : 'Confirm Password'} <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -371,17 +425,32 @@ export const FullPageLogin: React.FC<FullPageLoginProps> = ({
                     id="btn-auth-submit"
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                    className={`w-full py-3 px-4 rounded-xl text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                      authMode === 'reset'
+                        ? 'bg-amber-600 hover:bg-amber-500 active:bg-amber-700 shadow-amber-500/25'
+                        : 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700 shadow-blue-500/25'
+                    }`}
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>{authMode === 'signup' ? 'Creating Account...' : 'Signing In...'}</span>
+                        <span>
+                          {authMode === 'signup'
+                            ? 'Creating Account...'
+                            : authMode === 'reset'
+                            ? 'Updating Password...'
+                            : 'Signing In...'}
+                        </span>
                       </>
                     ) : authMode === 'signup' ? (
                       <>
                         <UserPlus className="w-4 h-4" />
                         <span>Create Account &amp; Open Workspace</span>
+                      </>
+                    ) : authMode === 'reset' ? (
+                      <>
+                        <KeyRound className="w-4 h-4" />
+                        <span>Reset Password &amp; Open Workspace</span>
                       </>
                     ) : (
                       <>
