@@ -1,4 +1,4 @@
-# robots.txt for PLANVEXA (https://ais-pre-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app)
+# robots.txt for PLANVEXA (https://planvexa.vercel.app)
 User-agent: *
 Allow: /
 
@@ -26,5 +26,4 @@ User-agent: Mediapartners-Google
 Allow: /
 
 # Sitemap Location
-Sitemap: https://ais-dev-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app/sitemap.xml
-Sitemap: https://ais-pre-26bx4hd2muqadwriyvwfvs-430586542917.asia-east1.run.app/sitemap.xml
+Sitemap: https://planvexa.vercel.app/sitemap.xml
