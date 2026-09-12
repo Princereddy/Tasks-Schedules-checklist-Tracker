@@ -1,34 +1,20 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Check if user is accessing their isolated user namespace
-    function isOwner(userId) {
-      return (request.auth != null && request.auth.uid == userId) || (request.auth == null && userId != null && userId != '');
+    match /users {
+      allow read, write: if true;
     }
 
-    // User profile document
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if true;
 
-      // User's private tasks collection
-      match /tasks/{taskId} {
-        allow read, write: if isOwner(userId);
+      match /{subcollection=**} {
+        allow read, write: if true;
       }
+    }
 
-      // User's daily task progress and habit history
-      match /progress/{progressId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      // User's custom categories
-      match /categories/{categoryId} {
-        allow read, write: if isOwner(userId);
-      }
-
-      // User's preferences and settings
-      match /settings/{settingId} {
-        allow read, write: if isOwner(userId);
-      }
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }

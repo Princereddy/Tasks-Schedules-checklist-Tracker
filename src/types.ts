@@ -78,7 +78,9 @@ export interface UserProfile {
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
-  authProvider?: 'gmail' | 'google.com';
+  authProvider?: 'password' | 'email' | 'gmail' | 'google.com';
   createdAt?: string;
   lastLoginAt?: string;
+  jobTitle?: string;
+  avatarColor?: string;
 }

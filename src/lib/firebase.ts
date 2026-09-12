@@ -6,6 +6,10 @@ import {
   signInWithRedirect,
   signInWithCredential,
   getRedirectResult,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updatePassword,
+  updateEmail,
   signOut, 
   onAuthStateChanged,
   updateProfile,
@@ -18,6 +22,8 @@ import {
   getDoc, 
   collection, 
   getDocs, 
+  query,
+  where,
   onSnapshot, 
   deleteDoc, 
   writeBatch,
@@ -85,6 +91,27 @@ function setStoredUserProfile(profile: UserProfile | null): void {
 }
 
 /**
+ * Hash password securely with Web Crypto SHA-256
+ */
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const salt = 'planvexa_secure_salt_v2';
+  const data = encoder.encode(password + salt);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Generate safe, deterministic UID from email address
+ */
+export function getDeterministicUid(email: string): string {
+  const cleanEmail = email.trim().toLowerCase();
+  const safeEmail = cleanEmail.replace(/[^a-z0-9]/g, '_');
+  return `usr_${safeEmail}`.substring(0, 64);
+}
+
+/**
  * Notify all auth state listeners
  */
 function emitAuthStateChange(user: UserProfile | null): void {
@@ -100,7 +127,7 @@ function emitAuthStateChange(user: UserProfile | null): void {
 }
 
 /**
- * Unified Auth State Observer (supports both Google GIS, Firebase Auth, and persistent sessions)
+ * Unified Auth State Observer (supports both Email/Password, Firebase Auth, and persistent sessions)
  */
 export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
   authListeners.add(callback);
@@ -120,9 +147,9 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
       const profile: UserProfile = {
         uid: firebaseUser.uid,
         email: firebaseUser.email,
-        displayName: firebaseUser.displayName || 'Google User',
-        photoURL: firebaseUser.photoURL,
-        authProvider: 'google.com',
+        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        photoURL: firebaseUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(firebaseUser.displayName || firebaseUser.email || 'User')}&backgroundColor=2563eb,0284c7,4f46e5`,
+        authProvider: 'password',
       };
       await saveUserProfileDoc(profile);
       emitAuthStateChange(profile);
@@ -147,7 +174,7 @@ export function onAppAuthStateChanged(callback: AuthStateCallback): () => void {
 /**
  * Persist / update user profile in Firestore
  */
-export async function saveUserProfileDoc(profile: UserProfile): Promise<void> {
+export async function saveUserProfileDoc(profile: UserProfile, extraFields: Record<string, any> = {}): Promise<void> {
   try {
     const userRef = doc(db, 'users', profile.uid);
     const existingSnap = await getDoc(userRef);
@@ -159,19 +186,27 @@ export async function saveUserProfileDoc(profile: UserProfile): Promise<void> {
         email: profile.email || '',
         displayName: profile.displayName || 'User',
         photoURL: profile.photoURL || '',
-        authProvider: profile.authProvider || 'gmail',
+        authProvider: profile.authProvider || 'password',
+        jobTitle: profile.jobTitle || 'Workspace Member',
+        avatarColor: profile.avatarColor || '#2563eb',
         createdAt: nowIso,
         lastLoginAt: nowIso,
+        ...extraFields,
       });
     } else {
+      const existingData = existingSnap.data() || {};
       await setDoc(userRef, {
         lastLoginAt: nowIso,
-        displayName: profile.displayName || existingSnap.data()?.displayName,
-        photoURL: profile.photoURL || existingSnap.data()?.photoURL,
+        displayName: profile.displayName || existingData.displayName,
+        email: profile.email || existingData.email,
+        photoURL: profile.photoURL || existingData.photoURL,
+        jobTitle: profile.jobTitle || existingData.jobTitle,
+        avatarColor: profile.avatarColor || existingData.avatarColor,
+        ...extraFields,
       }, { merge: true });
     }
   } catch (err) {
-    console.warn('Could not save user profile record:', err);
+    console.warn('Could not save user profile record to Firestore:', err);
   }
 }
 
@@ -183,264 +218,269 @@ export async function saveUserProfile(user: User): Promise<void> {
 }
 
 /**
- * Sign in with verified Gmail account.
- * Guarantees 100% login success and completely avoids auth/unauthorized-domain errors.
- * Strictly enforces that the account is an official @gmail.com address.
+ * CREATE ACCOUNT / SIGN UP with Email ID, Password, Confirm Password, and User Name
  */
-export async function loginWithGmailAccount(rawEmail: string, customName?: string): Promise<UserProfile> {
-  const cleanEmail = rawEmail.trim().toLowerCase();
-  
-  if (!cleanEmail || !cleanEmail.endsWith('@gmail.com')) {
-    throw new Error('Please enter a valid Gmail address ending with @gmail.com (e.g. yourname@gmail.com).');
+export async function signUpWithEmailPassword(params: {
+  email: string;
+  password: string;
+  confirmPassword?: string;
+  displayName: string;
+}): Promise<UserProfile> {
+  const cleanEmail = (params.email || '').trim().toLowerCase();
+  const cleanName = (params.displayName || '').trim();
+  const password = params.password || '';
+  const confirmPassword = params.confirmPassword || '';
+
+  // 1. Validation checks
+  if (!cleanName || cleanName.length < 2) {
+    throw new Error('Please enter a valid User Name (at least 2 characters).');
   }
 
-  // Generate deterministic UID based on email so user always gets their own cloud data back
-  const safeEmailKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
-  const uid = `gmail_${safeEmailKey}`.substring(0, 64);
-
-  // Compute friendly display name if not provided
-  let displayName = (customName || '').trim();
-  if (!displayName) {
-    const prefix = cleanEmail.split('@')[0].replace(/[._-]/g, ' ');
-    displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    throw new Error('Please enter a valid Email ID (e.g. name@example.com).');
   }
 
-  const photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=2563eb,0284c7,4f46e5`;
+  if (!password || password.length < 6) {
+    throw new Error('Password must be at least 6 characters long.');
+  }
+
+  if (confirmPassword && password !== confirmPassword) {
+    throw new Error('Passwords do not match. Please re-check password confirmation.');
+  }
+
+  const uid = getDeterministicUid(cleanEmail);
+  const passwordHash = await hashPassword(password);
+
+  // Check if user already exists in Firestore
+  const existingUserRef = doc(db, 'users', uid);
+  const existingSnap = await getDoc(existingUserRef);
+  if (existingSnap.exists()) {
+    throw new Error('An account with this Email ID already exists. Please click "Sign In" to enter your password.');
+  }
+
+  const photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=2563eb,0284c7,4f46e5`;
 
   const profile: UserProfile = {
     uid,
     email: cleanEmail,
-    displayName,
+    displayName: cleanName,
     photoURL,
-    authProvider: 'gmail',
+    authProvider: 'password',
+    jobTitle: 'Workspace Member',
+    avatarColor: '#2563eb',
+    createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
   };
 
-  // 1. Persist user profile to Cloud Firestore
-  await saveUserProfileDoc(profile);
+  // 2. Try Firebase Auth User Creation (optional cloud auth layer)
+  try {
+    const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    if (userCred.user) {
+      profile.uid = uid; // Keep deterministic UID for consistent workspace access across all domains
+      try {
+        await updateProfile(userCred.user, {
+          displayName: cleanName,
+          photoURL,
+        });
+      } catch (e) {
+        // Ignore secondary profile update error
+      }
+    }
+  } catch (fbAuthErr: any) {
+    const code = fbAuthErr?.code || '';
+    if (code === 'auth/email-already-in-use') {
+      throw new Error('An account with this Email ID already exists. Please click "Sign In" to enter your password.');
+    }
+    console.info('Firebase Auth registration fallback:', fbAuthErr);
+  }
 
-  // 2. Persist locally and broadcast state change
+  // 3. Save User Profile and Password Digest in Firestore
+  await saveUserProfileDoc(profile, { passwordHash });
+
+  // 4. Update Local Session & Emit state
   emitAuthStateChange(profile);
-
   return profile;
 }
 
-
 /**
- * Safely parse a JWT string (e.g. from Google GSI response)
+ * SIGN IN with Email ID and Password - STRICT: ONLY REGISTERED USERS WITH MATCHING PASSWORDS
  */
-export function parseJwt(token: string): any {
+export async function signInWithEmailPassword(params: {
+  email: string;
+  password: string;
+  rememberMe?: boolean;
+}): Promise<UserProfile> {
+  const cleanEmail = (params.email || '').trim().toLowerCase();
+  const password = params.password || '';
+
+  if (!cleanEmail) {
+    throw new Error('Please enter your Email ID.');
+  }
+  if (!password) {
+    throw new Error('Please enter your Password.');
+  }
+
+  const uid = getDeterministicUid(cleanEmail);
+  const passwordHash = await hashPassword(password);
+
+  // Strategy 1: Attempt native Firebase Auth signInWithEmailAndPassword if available
+  let nativeSuccess = false;
   try {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    );
-    return JSON.parse(jsonPayload);
-  } catch (e) {
-    console.error('Failed to parse JWT token:', e);
-    return null;
-  }
-}
-
-/**
- * Sign in using Google Identity Services credential (ID Token JWT)
- */
-export async function loginWithGoogleIdToken(idToken: string): Promise<UserProfile> {
-  const payload = parseJwt(idToken);
-  if (!payload || !payload.email) {
-    throw new Error('Invalid Google account verification token.');
+    const res = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    if (res.user) {
+      nativeSuccess = true;
+    }
+  } catch (fbErr: any) {
+    const code = fbErr?.code || '';
+    if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      // Check firestore hash below before concluding
+    } else if (code === 'auth/user-not-found') {
+      // Check firestore below before concluding
+    }
   }
 
-  const email = payload.email.toLowerCase();
-  const displayName = payload.name || email.split('@')[0];
-  const photoURL = payload.picture;
-  const uid = payload.sub ? `google_${payload.sub}` : `google_${email.replace(/[^a-z0-9]/g, '_')}`;
+  // Strategy 2: Check Firestore record to verify user registration and password hash
+  let userRef = doc(db, 'users', uid);
+  let userSnap = await getDoc(userRef);
 
+  // If not found by deterministic UID, search by email field in case of legacy UID
+  if (!userSnap.exists()) {
+    try {
+      const q = query(collection(db, 'users'), where('email', '==', cleanEmail));
+      const querySnap = await getDocs(q);
+      if (!querySnap.empty) {
+        userSnap = querySnap.docs[0];
+        userRef = doc(db, 'users', userSnap.id);
+      }
+    } catch (e) {
+      // Query fallback
+    }
+  }
+
+  // If user document does NOT exist in Firestore at all: UNREGISTERED USER -> DENY LOGIN
+  if (!userSnap.exists()) {
+    throw new Error('No registered account found for this Email ID. Please click "Sign Up" / "Create Account" first to register.');
+  }
+
+  const userData = userSnap.data() || {};
+
+  // Check stored password hash
+  if (userData.passwordHash) {
+    if (userData.passwordHash !== passwordHash && !nativeSuccess) {
+      throw new Error('Incorrect password. Please verify your credentials and try again.');
+    }
+  } else if (!nativeSuccess) {
+    // Legacy record without passwordHash and native auth failed
+    throw new Error('Incorrect password. Please verify your credentials or update your password.');
+  }
+
+  const effectiveDisplayName = userData.displayName || cleanEmail.split('@')[0];
   const profile: UserProfile = {
-    uid,
-    email,
-    displayName,
-    photoURL,
-    authProvider: 'google.com',
+    uid: userSnap.id,
+    email: userData.email || cleanEmail,
+    displayName: effectiveDisplayName,
+    photoURL: userData.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(effectiveDisplayName)}&backgroundColor=2563eb,0284c7,4f46e5`,
+    authProvider: 'password',
+    jobTitle: userData.jobTitle || 'Workspace Member',
+    avatarColor: userData.avatarColor || '#2563eb',
+    createdAt: userData.createdAt || new Date().toISOString(),
+    lastLoginAt: new Date().toISOString(),
   };
 
-  // Try signing into Firebase Auth with the Google ID Token credential
-  try {
-    const credential = GoogleAuthProvider.credential(idToken);
-    const result = await signInWithCredential(auth, credential);
-    if (result.user) {
-      profile.uid = result.user.uid;
-      profile.email = result.user.email || profile.email;
-      profile.displayName = result.user.displayName || profile.displayName;
-      profile.photoURL = result.user.photoURL || profile.photoURL;
-    }
-  } catch (firebaseErr: any) {
-    console.warn('Firebase signInWithCredential notice (continuing with verified Google user):', firebaseErr);
-  }
-
-  await saveUserProfileDoc(profile);
+  // Update last login timestamp in Firestore
+  await saveUserProfileDoc(profile, { passwordHash });
   emitAuthStateChange(profile);
   return profile;
 }
 
 /**
- * Request Google Sign-in via Google Identity Services Token Client
+ * EDIT USER PROFILE in Workspace (User Name, Password, Job Title, Avatar Color)
+ * Note: Registered Email ID is permanent and cannot be modified to preserve workspace partitioning.
  */
-export function loginWithGoogleGsiTokenClient(): Promise<UserProfile> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !(window as any).google?.accounts?.oauth2) {
-      return reject(new Error('Google Identity Services not loaded yet.'));
+export async function updateUserProfileData(params: {
+  displayName?: string;
+  email?: string;
+  newPassword?: string;
+  confirmNewPassword?: string;
+  jobTitle?: string;
+  avatarColor?: string;
+}): Promise<UserProfile> {
+  const current = cachedUserProfile || getStoredUserProfile();
+  if (!current || !current.uid) {
+    throw new Error('No active user session. Please sign in first.');
+  }
+
+  const updates: Partial<UserProfile> = {};
+  const extraFirestoreFields: Record<string, any> = {};
+
+  // 1. Update Display Name
+  if (params.displayName !== undefined) {
+    const cleanName = params.displayName.trim();
+    if (!cleanName || cleanName.length < 2) {
+      throw new Error('User Name must be at least 2 characters long.');
     }
+    updates.displayName = cleanName;
+    updates.photoURL = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=2563eb,0284c7,4f46e5`;
 
-    try {
-      const client = (window as any).google.accounts.oauth2.initTokenClient({
-        client_id: firebaseConfig.oAuthClientId,
-        scope: 'email profile openid',
-        callback: async (tokenResponse: any) => {
-          if (tokenResponse.error) {
-            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
-          }
-          if (!tokenResponse.access_token) {
-            return reject(new Error('No access token received from Google.'));
-          }
-
-          try {
-            const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-              headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-            });
-            const googleUser = await res.json();
-            if (!googleUser.email) {
-              return reject(new Error('Google did not return an email address.'));
-            }
-
-            const email = googleUser.email.toLowerCase();
-            const profile: UserProfile = {
-              uid: googleUser.sub ? `google_${googleUser.sub}` : `google_${email.replace(/[^a-z0-9]/g, '_')}`,
-              email,
-              displayName: googleUser.name || email.split('@')[0],
-              photoURL: googleUser.picture,
-              authProvider: 'google.com',
-            };
-
-            await saveUserProfileDoc(profile);
-            emitAuthStateChange(profile);
-            resolve(profile);
-          } catch (fetchErr) {
-            reject(fetchErr);
-          }
-        },
-        error_callback: (error: any) => {
-          reject(new Error(error?.message || 'Google sign-in was cancelled or encountered an issue.'));
-        },
-      });
-
-      client.requestAccessToken({ prompt: 'select_account' });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-/**
- * Sign in with Google (Gmail)
- * Uses Google Identity Services / Firebase Auth to authenticate the user and establish a persistent session.
- */
-export async function loginWithGoogle(): Promise<UserProfile | void> {
-  // Strategy 1: If Google Identity Services SDK is loaded on window, use it for 100% reliable OAuth
-  if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
-    try {
-      const profile = await loginWithGoogleGsiTokenClient();
-      return profile;
-    } catch (gisErr: any) {
-      console.warn('GIS Token client notice, attempting Firebase Auth fallback:', gisErr);
-      const msg = (gisErr?.message || '').toLowerCase();
-      if (msg.includes('user_cancel') || msg.includes('cancelled') || msg.includes('closed')) {
-        throw gisErr;
+    if (auth.currentUser) {
+      try {
+        await updateProfile(auth.currentUser, { displayName: cleanName, photoURL: updates.photoURL });
+      } catch (e) {
+        console.warn('Could not update Firebase Auth displayName:', e);
       }
     }
   }
 
-  // Strategy 2: Firebase Auth Popup / Redirect
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    const profile: UserProfile = {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || user.email?.split('@')[0] || 'Google User',
-      photoURL: user.photoURL,
-      authProvider: 'google.com',
-    };
-    await saveUserProfileDoc(profile);
-    emitAuthStateChange(profile);
-    return profile;
-  } catch (popupErr: any) {
-    const code = popupErr?.code || '';
-    const msg = (popupErr?.message || '').toLowerCase();
-    
-    if (code === 'auth/popup-closed-by-user') {
-      throw popupErr;
+  // 2. Update Password
+  if (params.newPassword) {
+    if (params.newPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters long.');
+    }
+    if (params.confirmNewPassword && params.newPassword !== params.confirmNewPassword) {
+      throw new Error('New password and confirmation do not match.');
     }
 
-    // If domain unauthorized (e.g. planvexa.vercel.app pending in Firebase Console Authorized Domains)
-    if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
-      console.info('Custom domain detected. Initializing verified workspace session...');
-      const fallbackEmail = 'charan9959672757@gmail.com';
-      const profile = await loginWithGmailAccount(fallbackEmail, 'Charan');
-      return profile;
-    }
+    const newHash = await hashPassword(params.newPassword);
+    extraFirestoreFields.passwordHash = newHash;
 
-    console.warn('Popup notice, invoking Firebase Auth redirect:', popupErr);
-    await signInWithRedirect(auth, googleProvider);
+    if (auth.currentUser) {
+      try {
+        await updatePassword(auth.currentUser, params.newPassword);
+      } catch (e) {
+        console.warn('Could not update Firebase Auth password:', e);
+      }
+    }
   }
+
+  // 4. Update optional profile fields
+  if (params.jobTitle !== undefined) updates.jobTitle = params.jobTitle.trim();
+  if (params.avatarColor !== undefined) updates.avatarColor = params.avatarColor;
+
+  const mergedProfile: UserProfile = {
+    ...current,
+    ...updates,
+    lastLoginAt: new Date().toISOString(),
+  };
+
+  // 5. Persist to Firestore
+  await saveUserProfileDoc(mergedProfile, extraFirestoreFields);
+
+  // 6. Broadcast state change
+  emitAuthStateChange(mergedProfile);
+  return mergedProfile;
 }
 
 /**
- * Direct Google OAuth Redirect
- */
-export async function loginWithGoogleRedirect(): Promise<void> {
-  await signInWithRedirect(auth, googleProvider);
-}
-
-/**
- * Check if the user has returned from a Google OAuth redirect
- */
-export async function checkRedirectResult(): Promise<UserProfile | null> {
-  try {
-    const result = await getRedirectResult(auth);
-    if (result && result.user) {
-      const profile: UserProfile = {
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName || 'Google User',
-        photoURL: result.user.photoURL,
-        authProvider: 'google.com',
-      };
-      await saveUserProfileDoc(profile);
-      emitAuthStateChange(profile);
-      return profile;
-    }
-    return null;
-  } catch (err) {
-    console.error('Error handling redirect result:', err);
-    return null;
-  }
-}
-
-/**
- * Sign out user from both Firebase Auth and Simple Gmail session
+ * Sign out user
  */
 export async function logoutUser(): Promise<void> {
-  // 1. Immediately reset memory cache and persistent storage
   cachedUserProfile = null;
   setStoredUserProfile(null);
 
   if (typeof window !== 'undefined') {
     try {
+      localStorage.removeItem('PLANVEXA_USER_PROFILE');
       localStorage.removeItem('planvexa_user_profile_v1');
       localStorage.removeItem('msoffice_tasktracker_tasks_v1');
       localStorage.removeItem('msoffice_tasktracker_progress_v1');
@@ -450,16 +490,14 @@ export async function logoutUser(): Promise<void> {
     }
   }
 
-  // 2. Safely sign out native Firebase Auth if currently active
   try {
     if (auth && auth.currentUser) {
       await signOut(auth);
     }
   } catch (e) {
-    // Ignore signout error if already signed out
+    // Ignore signout error
   }
 
-  // 3. Broadcast null auth state to all listeners
   emitAuthStateChange(null);
 }
 

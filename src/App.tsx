@@ -16,7 +16,6 @@ import { ExportModal } from './components/ExportModal';
 import { BottomNavBar } from './components/BottomNavBar';
 import { AuthModal } from './components/AuthModal';
 import { CloudSyncBanner } from './components/CloudSyncBanner';
-import { RedirectAuthBridge } from './components/RedirectAuthBridge';
 import { FullPageLogin } from './components/FullPageLogin';
 
 import { 
@@ -55,8 +54,9 @@ import { getStoredTheme, applyTheme } from './utils/theme';
 
 import {
   auth,
-  loginWithGoogle,
-  loginWithGmailAccount,
+  signInWithEmailPassword,
+  signUpWithEmailPassword,
+  updateUserProfileData,
   logoutUser,
   onAppAuthStateChanged,
   getStoredUserProfile,
@@ -70,21 +70,10 @@ import {
   batchDeleteTasksFromFirestore,
   batchSaveProgressToFirestore,
   updateUserDisplayName,
-  checkRedirectResult,
 } from './lib/firebase';
 
 
 export default function App() {
-  // Check if we are in direct OAuth redirect bridge mode
-  const isAuthRedirectMode = typeof window !== 'undefined' && (
-    new URLSearchParams(window.location.search).get('auth_mode') === 'redirect' ||
-    new URLSearchParams(window.location.search).get('action') === 'google_redirect'
-  );
-
-  if (isAuthRedirectMode) {
-    return <RedirectAuthBridge />;
-  }
-
   const todayParts = getTodayDateParts();
 
   // State: Theme Mode (Light / Dark / System)
@@ -207,49 +196,7 @@ export default function App() {
     };
   }, []);
 
-  // Check redirect result on app initialization for standalone windows
-  useEffect(() => {
-    checkRedirectResult()
-      .then((user) => {
-        if (user) {
-          setCurrentUser(user);
-          soundFx.playSuccessChime();
-          const notif = notificationService.createNotification(
-            '☁️ Google Account Connected',
-            `Welcome, ${user.displayName || user.email}! Workspace connected with Cloud Firestore.`,
-            'info'
-          );
-          setNotifications((prev) => [notif, ...prev]);
-        }
-      })
-      .catch((err) => {
-        console.warn('Silent checkRedirectResult:', err);
-      })
-      .finally(() => {
-        setIsAuthInitializing(false);
-      });
-  }, []);
-
-  // Listen for auth success postMessage from standalone auth window
-  useEffect(() => {
-    const handleAuthMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'PLANVEXA_AUTH_SUCCESS') {
-        setIsAuthModalOpen(false);
-        soundFx.playSuccessChime();
-        const notif = notificationService.createNotification(
-          '☁️ Google Account Connected',
-          `Signed in successfully! Your tasks and habits are syncing with Cloud Firestore.`,
-          'info'
-        );
-        setNotifications((prev) => [notif, ...prev]);
-      }
-    };
-    window.addEventListener('message', handleAuthMessage);
-    return () => window.removeEventListener('message', handleAuthMessage);
-  }, []);
-
-
-  // Check for ?action=signin query parameter (e.g. from popup-blocked new-tab fallback)
+  // Check for ?action=signin query parameter
   useEffect(() => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
@@ -364,21 +311,79 @@ export default function App() {
     soundFx.playClickBeep();
   };
 
-  // Auth Operations
-  const handleLogin = async () => {
+  // Auth Operations: Email & Password Sign In, Sign Up, Profile Updates
+  const handleSignIn = async (params: { email: string; password: string }) => {
     setIsSyncing(true);
     try {
-      const profile = await loginWithGoogle();
-      if (profile) {
-        setCurrentUser(profile);
-        soundFx.playSuccessChime();
-        const notif = notificationService.createNotification(
-          '☁️ Google Account Connected',
-          `Welcome, ${profile.displayName || profile.email}! Workspace connected with Cloud Firestore.`,
-          'info'
-        );
-        setNotifications((prev) => [notif, ...prev]);
+      const profile = await signInWithEmailPassword(params);
+      setCurrentUser(profile);
+      soundFx.playSuccessChime();
+      const notif = notificationService.createNotification(
+        '🔐 Signed In Successfully',
+        `Welcome back, ${profile.displayName || profile.email}! Connected to Cloud Firestore.`,
+        'info'
+      );
+      setNotifications((prev) => [notif, ...prev]);
+      return profile;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleSignUp = async (params: { email: string; password: string; confirmPassword: string; displayName: string }) => {
+    setIsSyncing(true);
+    try {
+      const profile = await signUpWithEmailPassword(params);
+      setCurrentUser(profile);
+      soundFx.playSuccessChime();
+      const notif = notificationService.createNotification(
+        '🎉 Welcome to PLANVEXA',
+        `Account created for ${profile.displayName}! Your personal workspace is ready.`,
+        'info'
+      );
+      setNotifications((prev) => [notif, ...prev]);
+      return profile;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleUpdateProfile = async (params: {
+    displayName?: string;
+    email?: string;
+    newPassword?: string;
+    confirmNewPassword?: string;
+    jobTitle?: string;
+    avatarColor?: string;
+  }) => {
+    setIsSyncing(true);
+    setSyncStatus('saving');
+    try {
+      const updated = await updateUserProfileData(params);
+      setCurrentUser(updated);
+      if (updated.displayName) {
+        setCustomDisplayName(updated.displayName);
       }
+      setLastSyncedAt(new Date());
+      setSyncStatus('synced');
+      const notif = notificationService.createNotification(
+        '👤 Profile Updated',
+        'Your profile changes were saved and synchronized to Cloud Firestore.',
+        'info'
+      );
+      setNotifications((prev) => [notif, ...prev]);
+      soundFx.playSuccessChime();
+      setTimeout(() => {
+        setSyncStatus((curr) => (curr === 'synced' ? 'idle' : curr));
+      }, 2500);
+      return updated;
+    } catch (err: any) {
+      console.error('Failed to update profile:', err);
+      setSyncStatus('error');
+      setTimeout(() => {
+        setSyncStatus((curr) => (curr === 'error' ? 'idle' : curr));
+      }, 4000);
+      throw err;
     } finally {
       setIsSyncing(false);
     }
@@ -397,7 +402,7 @@ export default function App() {
     setProgress({});
     setNotifications([]);
 
-    // 3. Cleanly terminate Firebase Auth and simple Gmail session
+    // 3. Cleanly terminate session
     try {
       await logoutUser();
     } catch (err) {
@@ -748,11 +753,12 @@ export default function App() {
     );
   }
 
-  // Full-Page Auth Wall: users must log in with Google to access their workspace
+  // Full-Page Auth Wall: users sign in or sign up with Email ID & Password
   if (!currentUser) {
     return (
       <FullPageLogin
-        onGoogleOAuthLogin={handleLogin}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);
@@ -936,10 +942,11 @@ export default function App() {
         isSyncing={isSyncing}
         syncStatus={syncStatus}
         lastSyncedAt={lastSyncedAt}
-        onLogin={handleLogin}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
         onLogout={handleLogout}
         onManualSync={handleManualSync}
-        onUpdateDisplayName={handleUpdateDisplayName}
+        onUpdateProfile={handleUpdateProfile}
         tasksCount={tasks.length}
       />
 
